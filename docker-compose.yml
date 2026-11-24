@@ -1,0 +1,14 @@
+services:
+  office:
+    build: .
+    ports:
+      - "127.0.0.1:4317:4317"
+    environment:
+      # Set a stable 32-byte base64 key so credentials survive container rebuilds.
+      MAO_MASTER_KEY: ${MAO_MASTER_KEY:-}
+    volumes:
+      - mao-data:/data
+    restart: unless-stopped
+
+volumes:
+  mao-data:
