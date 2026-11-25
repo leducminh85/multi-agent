@@ -84,25 +84,65 @@ export function embedBareMedia(md: string): string {
   return out.join('\n');
 }
 
-function Media({ src, alt, ctx }: { src: string; alt?: string; ctx: MediaContext }) {
-  const [broken, setBroken] = useState(false);
-  const url = mediaUrl(src, ctx);
-  const yt = youtubeId(src);
-  const vm = vimeoId(src);
-  if (yt || vm)
+/**
+ * A YouTube / Vimeo video: shows the thumbnail with a play button and loads the real player only on click,
+ * so a chat full of video links stays light.
+ */
+function VideoEmbed({ yt, vm, title }: { yt: string | null; vm: string | null; title?: string }) {
+  const [play, setPlay] = useState(false);
+  const box = 'my-2 block aspect-video w-full max-w-xl overflow-hidden rounded-lg border border-white/10 bg-black';
+  if (play || !yt)
     return (
-      <span className="my-2 block aspect-video w-full max-w-2xl overflow-hidden rounded-lg border border-white/10 bg-black">
+      <span className={box}>
         <iframe
           className="h-full w-full"
-          src={yt ? `https://www.youtube-nocookie.com/embed/${yt}` : `https://player.vimeo.com/video/${vm}`}
-          title={alt || 'video'}
-          allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+          src={yt ? `https://www.youtube-nocookie.com/embed/${yt}?autoplay=1` : `https://player.vimeo.com/video/${vm}`}
+          title={title || 'video'}
+          allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           // YouTube refuses to play without a Referer (error 153); the app itself sends no-referrer.
           referrerPolicy="strict-origin-when-cross-origin"
           allowFullScreen
         />
       </span>
     );
+  return (
+    <button type="button" onClick={() => setPlay(true)} className={cx(box, 'group relative')} title={title || 'Play video'}>
+      <img src={`https://i.ytimg.com/vi/${yt}/hqdefault.jpg`} alt={title ?? ''} loading="lazy" className="h-full w-full object-cover opacity-90 group-hover:opacity-100" />
+      <span className="absolute inset-0 flex items-center justify-center">
+        <span className="flex h-12 w-16 items-center justify-center rounded-xl bg-red-600/90 text-2xl text-white shadow-lg group-hover:bg-red-600">▶</span>
+      </span>
+    </button>
+  );
+}
+
+/** Video links (YouTube / Vimeo) mentioned inside sentences – shown as players below the message. */
+export function inlineVideos(md: string, max = 2): string[] {
+  const urls = md.match(/https?:\/\/[^\s)\]'"<>]+/g) ?? [];
+  const standalone = new Set(
+    md
+      .split('\n')
+      .map((l) => l.trim().replace(/^<|>$/g, '').replace(/^\[[^\]]*\]\((.+)\)$/, '$1'))
+      .filter((l) => /^https?:\/\/\S+$/.test(l))
+      .map((l) => youtubeId(l) ?? vimeoId(l)),
+  );
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const u of urls) {
+    const id = youtubeId(u) ?? vimeoId(u);
+    if (!id || seen.has(id) || standalone.has(id)) continue;
+    seen.add(id);
+    out.push(u);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function Media({ src, alt, ctx }: { src: string; alt?: string; ctx: MediaContext }) {
+  const [broken, setBroken] = useState(false);
+  const url = mediaUrl(src, ctx);
+  const yt = youtubeId(src);
+  const vm = vimeoId(src);
+  if (yt || vm) return <VideoEmbed yt={yt} vm={vm} title={alt} />;
   if (broken)
     return (
       <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded border border-white/10 px-1.5 py-0.5 text-xs text-slate-400">
@@ -155,6 +195,9 @@ function MarkdownImpl({ text, ctx = {}, className }: { text: string; ctx?: Media
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} urlTransform={safeUrl}>
         {embedBareMedia(text)}
       </ReactMarkdown>
+      {inlineVideos(text).map((u) => (
+        <Media key={u} src={u} ctx={ctx} />
+      ))}
     </div>
   );
 }

@@ -48,8 +48,9 @@ const html = (md: string) => renderToStaticMarkup(createElement(Markdown, { text
 describe('Markdown media rendering', () => {
   it('embeds a YouTube link that stands on its own line, with a referrer YouTube accepts', () => {
     const out = html('Xem video:\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ');
-    expect(out).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
-    expect(out).toMatch(/referrerpolicy="strict-origin-when-cross-origin"/i);
+    // Thumbnail + play button; the real player (with the referrer YouTube needs) loads on click.
+    expect(out).toContain('i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+    expect(out).not.toContain('<iframe');
   });
 
   it('keeps a YouTube link inside a sentence as a link (no player breaking the text)', () => {
@@ -57,5 +58,21 @@ describe('Markdown media rendering', () => {
     expect(out).not.toContain('<iframe');
     expect(out).toContain('▶');
     expect(out).toContain('href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"');
+  });
+});
+
+import { inlineVideos } from './Markdown';
+
+describe('inlineVideos', () => {
+  it('lists each video mentioned inside a sentence once, skipping ones already on their own line', () => {
+    const t = 'Plan for "https://www.youtube.com/watch?v=MroF1XmHOZw&t=8s" and again https://youtu.be/MroF1XmHOZw';
+    expect(inlineVideos(t)).toEqual(['https://www.youtube.com/watch?v=MroF1XmHOZw&t=8s']);
+    expect(inlineVideos('Xem:\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual([]);
+    expect(inlineVideos('no video https://example.com')).toEqual([]);
+  });
+
+  it('shows a click-to-play preview under a message that mentions a video mid-sentence', () => {
+    const out = html('Plan ready for "phân tích video https://www.youtube.com/watch?v=dQw4w9WgXcQ": xong');
+    expect(out).toContain('i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
   });
 });
