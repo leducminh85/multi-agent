@@ -15,6 +15,7 @@ const IMAGE = /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i;
 const VIDEO = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
 const AUDIO = /\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i;
 const isRemote = (u: string) => /^(https?:|data:|blob:|mailto:|#)/i.test(u);
+const isMedia = (u: string) => IMAGE.test(u) || VIDEO.test(u) || !!youtubeId(u) || !!vimeoId(u);
 
 /**
  * Keep local paths (Windows drive letters would otherwise be read as a URL scheme and dropped) but never allow
@@ -96,6 +97,8 @@ function Media({ src, alt, ctx }: { src: string; alt?: string; ctx: MediaContext
           src={yt ? `https://www.youtube-nocookie.com/embed/${yt}` : `https://player.vimeo.com/video/${vm}`}
           title={alt || 'video'}
           allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+          // YouTube refuses to play without a Referer (error 153); the app itself sends no-referrer.
+          referrerPolicy="strict-origin-when-cross-origin"
           allowFullScreen
         />
       </span>
@@ -120,17 +123,23 @@ function Media({ src, alt, ctx }: { src: string; alt?: string; ctx: MediaContext
 function MarkdownImpl({ text, ctx = {}, className }: { text: string; ctx?: MediaContext; className?: string }) {
   const components: Components = {
     img: ({ src, alt }) => (src ? <Media src={String(src)} alt={alt} ctx={ctx} /> : null),
+    // A paragraph that is only a link to media (on its own line) shows the media itself.
+    p: ({ node, children }) => {
+      const kids = (node?.children ?? []).filter((c: any) => !(c.type === 'text' && !c.value.trim()));
+      const only = kids.length === 1 && kids[0].type === 'element' && (kids[0] as any).tagName === 'a' ? String((kids[0] as any).properties?.href ?? '') : '';
+      if (only && isMedia(only)) {
+        const label = (kids[0] as any).children?.[0]?.value;
+        return <div className="my-1">{<Media src={only} alt={label && label !== only ? label : undefined} ctx={ctx} />}</div>;
+      }
+      return <p>{children}</p>;
+    },
     a: ({ href, children }) => {
       const h = String(href ?? '');
-      // A link straight to an image/video/YouTube: show the media itself, keep the link underneath.
-      if (IMAGE.test(h) || VIDEO.test(h) || youtubeId(h) || vimeoId(h))
-        return (
-          <>
-            <Media src={h} alt={typeof children === 'string' ? children : undefined} ctx={ctx} />
-          </>
-        );
+      // Inside a sentence a media link stays a link (with an icon) so the text is not broken up by a player.
+      const icon = youtubeId(h) || vimeoId(h) || VIDEO.test(h) ? '▶ ' : IMAGE.test(h) ? '🖼 ' : '';
       return (
         <a href={isRemote(h) ? h : mediaUrl(h, ctx)} target="_blank" rel="noreferrer">
+          {icon}
           {children}
         </a>
       );

@@ -38,3 +38,24 @@ describe('mediaUrl', () => {
     expect(mediaUrl('https://x.org/a.png')).toBe('https://x.org/a.png');
   });
 });
+
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import Markdown from './Markdown';
+
+const html = (md: string) => renderToStaticMarkup(createElement(Markdown, { text: md }));
+
+describe('Markdown media rendering', () => {
+  it('embeds a YouTube link that stands on its own line, with a referrer YouTube accepts', () => {
+    const out = html('Xem video:\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(out).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ');
+    expect(out).toMatch(/referrerpolicy="strict-origin-when-cross-origin"/i);
+  });
+
+  it('keeps a YouTube link inside a sentence as a link (no player breaking the text)', () => {
+    const out = html('Plan ready for "phân tích video https://www.youtube.com/watch?v=dQw4w9WgXcQ": Researcher thu thập thông tin');
+    expect(out).not.toContain('<iframe');
+    expect(out).toContain('▶');
+    expect(out).toContain('href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"');
+  });
+});
