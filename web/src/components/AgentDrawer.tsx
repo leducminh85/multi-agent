@@ -4,6 +4,7 @@ import { post } from '../lib/api';
 import { useAction, useAgent } from '../lib/hooks';
 import { fmtNum, timeAgo } from '../lib/format';
 import { useTaskStream } from '../lib/realtime';
+import AgentAiPicker from './AgentAiPicker';
 import AgentForm from './AgentForm';
 import CommandCenter from './CommandCenter';
 import { ActivityBadge, Badge, Drawer, Output, Spinner, StatusBadge, Tabs, useConfirm } from './ui';
@@ -45,6 +46,7 @@ export default function AgentDrawer({ agentId, onClose, onOpenTask }: { agentId:
             <Info k="Model" v={a.model ?? 'provider default'} />
             <Info k="Tokens today" v={fmtNum(a.tokensToday)} />
           </div>
+          <AgentAiPicker agent={a} />
           {a.unavailableReason && <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">Not available: {a.unavailableReason}</div>}
           <div className="flex flex-wrap gap-2">
             <button className="btn-outline btn-sm" onClick={() => pause.mutate()}>
@@ -116,7 +118,7 @@ export default function AgentDrawer({ agentId, onClose, onOpenTask }: { agentId:
               <div>
                 <h4 className="label">Activity log</h4>
                 <ul className="space-y-1 text-sm">
-                  {(a.activity ?? []).map((x: any) => (
+                  {(a.activityLog ?? []).map((x: any) => (
                     <li key={x.id} className="flex justify-between gap-2">
                       <span className="text-slate-300">{x.message}</span>
                       <span className="shrink-0 text-xs text-slate-500">{timeAgo(x.createdAt)}</span>

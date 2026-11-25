@@ -3,8 +3,9 @@ import { useState } from 'react';
 import AgentDrawer from '../components/AgentDrawer';
 import QuickAgentModal from '../components/QuickAgentModal';
 import TaskDrawer from '../components/TaskDrawer';
-import { ActivityBadge, Badge, Empty, Field, Modal, PageHeader, Spinner, useConfirm } from '../components/ui';
-import { del, post } from '../lib/api';
+import { ActivityBadge, Badge, Empty, Field, Modal, PageHeader, Spinner, useConfirm, useToast } from '../components/ui';
+import { useQueryClient } from '@tanstack/react-query';
+import { del, patch, post } from '../lib/api';
 import { useAction, useAgents, useProviders } from '../lib/hooks';
 import { fmtNum, timeAgo } from '../lib/format';
 import type { Agent } from '../lib/types';
@@ -27,6 +28,7 @@ export default function AgentsPage() {
         actions={
           <>
             <input className="input w-48" placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <SwitchTeamAi />
             <button className="btn-outline" onClick={() => setTeamOpen(true)}>
               <Users className="h-4 w-4" /> Default team
             </button>
@@ -146,5 +148,36 @@ function TeamModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         <input className="input" value={model} onChange={(e) => setModel(e.target.value)} placeholder="provider default" />
       </Field>
     </Modal>
+  );
+}
+
+/** Move every employee to one AI in a single step (e.g. from Antigravity to Claude). Models reset to that AI's default. */
+function SwitchTeamAi() {
+  const agents = useAgents();
+  const providers = useProviders();
+  const confirm = useConfirm();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const usable = (providers.data ?? []).filter((p) => p.canExecute && p.enabled);
+  if (usable.length < 2 || !agents.data?.length) return null;
+  const run = async (providerId: string) => {
+    const p = usable.find((x) => x.id === providerId);
+    if (!p) return;
+    const list = agents.data!.filter((a) => a.providerId !== providerId);
+    if (!list.length) return toast.push({ kind: 'info', text: `Everyone already uses ${p.name}` });
+    if (!(await confirm({ title: `Switch the whole team to ${p.name}?`, message: `${list.length} employee(s) will use ${p.name} with its default model for new work. Work already running is not interrupted.`, confirmText: 'Switch' }))) return;
+    for (const a of list) await patch(`/agents/${a.id}`, { providerId, model: null });
+    toast.push({ kind: 'success', text: `${list.length} employee(s) now use ${p.name}` });
+    void qc.invalidateQueries({ queryKey: ['agents'] });
+  };
+  return (
+    <select className="input w-auto" value="" onChange={(e) => void run(e.target.value)} aria-label="Switch the whole team to another AI">
+      <option value="">Switch whole team to…</option>
+      {usable.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.name}
+        </option>
+      ))}
+    </select>
   );
 }

@@ -274,7 +274,6 @@ const VI: Record<string, string> = {
   Day: 'Ngày',
   Week: 'Tuần',
   Month: 'Tháng',
-  Now: 'Bây giờ',
   unlimited: 'không giới hạn',
   'just now': 'vừa xong',
   'open task →': 'mở task →',
@@ -366,6 +365,21 @@ const VI: Record<string, string> = {
   'Running work is aborted and returned to the queue; the agent is paused.': 'Việc đang chạy bị dừng và trả lại hàng đợi; nhân viên được tạm dừng.',
   'This agent has not stored any memories yet. Agents save durable facts through the collaboration protocol.': 'Nhân viên này chưa lưu ghi nhớ nào.',
   'Roles define default behaviour, department and visible activity. Create custom roles in Settings.': 'Vai trò quyết định cách làm việc, phòng ban và hoạt động hiển thị. Tạo vai trò riêng trong Cài đặt.',
+
+  'AI & model': 'AI & model',
+  'Default (recommended)': 'Mặc định (khuyên dùng)',
+  'provider default': 'mặc định',
+  'Loading models…': 'Đang tải danh sách model…',
+  'Switch whole team to…': 'Đổi AI cho cả đội…',
+  'Switch the whole team to another AI': 'Đổi AI cho cả đội',
+  Switch: 'Đổi',
+  'Something went wrong on this screen': 'Màn hình này gặp lỗi',
+  'Try again': 'Thử lại',
+  'Reload page': 'Tải lại trang',
+  'No task in progress.': 'Không có task đang làm.',
+  Now: 'Hiện tại',
+  Memory: 'Ghi nhớ',
+  Pause: 'Tạm dừng',
 
   // ---- tasks
   'Task Management': 'Quản lý công việc',
@@ -531,6 +545,17 @@ const VI: Record<string, string> = {
 
 /** Dynamic strings: [pattern, replacement]. Applied to whole (trimmed) text nodes. */
 const PATTERNS: [RegExp, string][] = [
+  [/^(.+) now uses the selected AI$/, '$1 đã chuyển sang AI mới'],
+  [/^Switch the whole team to (.+)\?$/, 'Đổi cả đội sang $1?'],
+  [/^(\d+) employee\(s\) will use (.+) with its default model for new work\. Work already running is not interrupted\.$/, '$1 nhân viên sẽ dùng $2 (model mặc định) cho việc mới. Việc đang chạy không bị ngắt.'],
+  [/^(\d+) employee\(s\) now use (.+)$/, '$1 nhân viên đã chuyển sang $2'],
+  [/^Everyone already uses (.+)$/, 'Cả đội đã dùng $1'],
+  [/^Memory \((\d+)\)$/, 'Ghi nhớ ($1)'],
+  [/^Stop (.+)\?$/, 'Dừng $1?'],
+  [/^Not available: (.+)$/, 'Không khả dụng: $1'],
+  [/^Give (.+) a task directly – it skips planning and goes straight to this agent\.$/, 'Giao việc trực tiếp cho $1 – bỏ qua bước lập kế hoạch.'],
+  [/^Task for (.+)…$/, 'Việc cho $1…'],
+  [/^Something went wrong.*Details: (.+)$/, 'Lỗi: $1'],
   [/^Run this in a terminal to sign in: (.+)$/, 'Chạy lệnh này trong terminal để đăng nhập: $1'],
   [/^Paste your (.+) API key \((.+)\)\. Get one at:$/, 'Dán API key $1 ($2). Lấy key tại:'],
   [/^(\d+) working · (\d+) idle · click a person for details$/, '$1 đang làm · $2 rảnh · bấm vào một người để xem chi tiết'],

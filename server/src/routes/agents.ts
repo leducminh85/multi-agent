@@ -66,7 +66,8 @@ export function agentRoutes(s: Services): Router {
       tokensToday: s.usage.agentTokensToday(a.id),
       currentTask: a.currentTaskId ? s.store.getTask(a.currentTaskId, true) : null,
       recentTasks: s.store.listTasks({ agentId: a.id, limit: 30 }),
-      activity: s.activity.list({ agentId: a.id, limit: 50 }),
+      // Not `activity`: that field is the agent's live state ('idle', 'coding', …).
+      activityLog: s.activity.list({ agentId: a.id, limit: 50 }),
       memory: s.knowledge.list({ scope: 'agent', agentId: a.id }),
     });
   });

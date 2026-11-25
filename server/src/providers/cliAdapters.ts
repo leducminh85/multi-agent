@@ -326,6 +326,19 @@ export const antigravityCliAdapter: ProviderAdapter = {
     canExecute: true,
   },
   run: runAgy,
+  async listModels(ctx) {
+    const ctrl = new AbortController();
+    const r = await runCli({ command: ctx.config.command || 'agy', args: ['models'], signal: ctrl.signal, timeoutMs: 30000 });
+    if (r.code !== 0) return [];
+    return r.stdout
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !/^Fetching/i.test(l))
+      .map((l) => {
+        const [id, label] = l.split('\t');
+        return { id: id.trim(), label: label?.trim() || undefined };
+      });
+  },
   async checkConnection(ctx) {
     const command = ctx.config.command || 'agy';
     try {

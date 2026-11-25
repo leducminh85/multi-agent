@@ -131,10 +131,17 @@ export interface BillingRow {
   note?: string;
 }
 
+export interface ModelOption {
+  id: string;
+  label?: string;
+}
+
 export interface ProviderAdapter {
   descriptor: ProviderDescriptor;
   run(ctx: ProviderContext, req: RunRequest): Promise<RunResult>;
   checkConnection(ctx: ProviderContext): Promise<ConnectionCheck>;
+  /** Models this account can use, with human-friendly labels when the vendor provides them. */
+  listModels?(ctx: ProviderContext): Promise<ModelOption[]>;
   /** Organisation billing data via the vendor's official API (admin credential). */
   fetchBilling?(ctx: ProviderContext, from: Date, to: Date): Promise<BillingRow[]>;
   transcribe?(ctx: ProviderContext, file: { path: string; mime: string; name: string }, signal?: AbortSignal): Promise<{ text: string; usage?: UsageInfo; model?: string }>;

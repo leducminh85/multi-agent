@@ -78,6 +78,22 @@ describe('REST API', () => {
     await env.s.orchestrator.idle();
     const m = await request(app).get(`/api/missions/${assign.body.id}`).set(auth());
     expect(m.body.status).toBe('completed');
+
+    // Agent detail: `activity` stays the live state, the history is `activityLog` (mixing them crashed the UI).
+    const detail = await request(app).get(`/api/agents/${dev.id}`).set(auth());
+    expect(typeof detail.body.activity).toBe('string');
+    expect(Array.isArray(detail.body.activityLog)).toBe(true);
+    expect(detail.body.activityLog.length).toBeGreaterThan(0);
+
+    // Model picker + switching an agent's AI/model.
+    const models = await request(app).get(`/api/providers/${providers.body[0].id}/models`).set(auth());
+    expect(models.status).toBe(200);
+    expect(Array.isArray(models.body)).toBe(true);
+    const switched = await request(app).patch(`/api/agents/${dev.id}`).set(auth()).send({ providerId: providers.body[0].id, model: 'mock-large' });
+    expect(switched.status).toBe(200);
+    expect(switched.body.model).toBe('mock-large');
+    const reset = await request(app).patch(`/api/agents/${dev.id}`).set(auth()).send({ model: null });
+    expect(reset.body.model).toBeNull();
     expect(m.body.tasks[0].output).toBe('ok');
 
     const overview = await request(app).get('/api/overview').set(auth());

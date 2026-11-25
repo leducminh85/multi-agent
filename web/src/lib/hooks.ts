@@ -22,7 +22,7 @@ import { useToast } from '../components/ui';
 
 export const useAgents = () => useQuery({ queryKey: ['agents'], queryFn: () => get<Agent[]>('/agents') });
 export const useAgent = (id: string | null) =>
-  useQuery({ queryKey: ['agent', id], queryFn: () => get<AgentDetail & { activity: any }>(`/agents/${id}`), enabled: !!id });
+  useQuery({ queryKey: ['agent', id], queryFn: () => get<AgentDetail & { activityLog: any[] }>(`/agents/${id}`), enabled: !!id });
 export const useRoles = () => useQuery({ queryKey: ['roles'], queryFn: () => get<Role[]>('/roles') });
 export const useProviders = () => useQuery({ queryKey: ['providers'], queryFn: () => get<Provider[]>('/providers') });
 export const useProviderTypes = () => useQuery({ queryKey: ['provider-types'], queryFn: () => get<ProviderDescriptor[]>('/provider-types'), staleTime: Infinity });

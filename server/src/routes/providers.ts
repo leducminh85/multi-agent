@@ -104,6 +104,32 @@ export function providerRoutes(s: Services): Router {
     }),
   );
 
+  /** Model choices for the agent "AI & model" picker: vendor list when available, else suggested models. */
+  const modelCache = new Map<string, { at: number; models: { id: string; label?: string }[] }>();
+  r.get(
+    '/providers/:id/models',
+    ah(async (req, res) => {
+      const id = req.params.id;
+      const hit = modelCache.get(id);
+      if (hit && Date.now() - hit.at < 5 * 60_000) return void res.json(hit.models);
+      const ctx = s.providers.context(id);
+      const adapter = s.registry.get(ctx.type);
+      let models: { id: string; label?: string }[] = [];
+      try {
+        if (adapter.listModels) models = await adapter.listModels(ctx);
+        else {
+          const check = await adapter.checkConnection(ctx);
+          models = (check.models ?? []).map((m) => ({ id: m }));
+        }
+      } catch {
+        /* fall back to suggestions */
+      }
+      if (!models.length) models = adapter.descriptor.suggestedModels.map((m) => ({ id: m }));
+      modelCache.set(id, { at: Date.now(), models });
+      res.json(models);
+    }),
+  );
+
   r.post(
     '/providers/:id/check',
     ah(async (req, res) => {

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import { Spinner } from './components/ui';
 import { get, setToken, setUnauthorizedHandler } from './lib/api';
@@ -18,6 +19,7 @@ import UsagePage from './pages/Usage';
 
 export default function App() {
   const qc = useQueryClient();
+  const location = useLocation();
   const [authVersion, setAuthVersion] = useState(0);
   const status = useQuery({
     queryKey: ['auth-status', authVersion],
@@ -68,6 +70,7 @@ export default function App() {
         setAuthVersion((v) => v + 1);
       }}
     >
+      <ErrorBoundary resetKey={location.pathname}>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/office" element={<OfficePage />} />
@@ -80,6 +83,7 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </Layout>
   );
 }
