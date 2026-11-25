@@ -14,10 +14,10 @@ import SetupWizard from '../components/SetupWizard';
 import TaskDrawer from '../components/TaskDrawer';
 import { Badge, cx, Empty, ProgressBar } from '../components/ui';
 import { get, post } from '../lib/api';
-import { useAction, useAgents, useAlerts, useApprovals, useMessages, useMissions, useOverview, useProviders, useRoles, useTasks } from '../lib/hooks';
+import { useAction, useAgents, useApprovals, useMessages, useMissions, useOverview, useProviders, useRoles, useTasks } from '../lib/hooks';
 import { fmtNum, fmtUsd, formatDuration, timeAgo } from '../lib/format';
 import { onEvent } from '../lib/realtime';
-import type { QuotaEntry, Task } from '../lib/types';
+import type { Message, QuotaEntry, Task } from '../lib/types';
 import { OfficeEngine, type OfficeAgent } from '../office/engine';
 import { Bubble, KIND_STYLE } from './Communication';
 
@@ -261,10 +261,43 @@ function AssistantChat({ onTask }: { onTask: (id: string) => void }) {
   );
 }
 
+const TEAM_PAGE = 30;
+
 function TeamChat({ onTask }: { onTask: (id: string) => void }) {
-  const msgs = useMessages('agents', '&limit=100');
+  // Newest messages on top; older ones load as you scroll down.
+  const latest = useMessages('agents', `&limit=${TEAM_PAGE}`);
+  const [older, setOlder] = useState<Message[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const sentinel = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const list = useMemo(() => {
+    const byId = new Map<string, Message>();
+    for (const m of [...older, ...(latest.data ?? [])]) byId.set(m.id, m);
+    return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [older, latest.data]);
+  const oldest = list[list.length - 1]?.createdAt;
+  const loadMore = async () => {
+    if (loading || !hasMore || !oldest) return;
+    setLoading(true);
+    try {
+      const page = await get<Message[]>(`/messages?channel=agents&limit=${TEAM_PAGE}&before=${encodeURIComponent(oldest)}`);
+      setOlder((o) => [...o, ...page]);
+      if (page.length < TEAM_PAGE) setHasMore(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el) return;
+    const io = new IntersectionObserver((e) => e[0].isIntersecting && void loadMore(), { root: scroller.current, rootMargin: '200px' });
+    io.observe(el);
+    return () => io.disconnect();
+  });
+  const msgs = { data: list };
   return (
-    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+    <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
       {!msgs.data?.length && <div className="p-4 text-center text-sm text-slate-500">When employees ask each other for help or share results, it shows up here.</div>}
       {(msgs.data ?? []).map((m) => (
         <div key={m.id} className="rounded-lg border border-white/5 bg-ink-850/60 px-2.5 py-1.5">
@@ -283,6 +316,11 @@ function TeamChat({ onTask }: { onTask: (id: string) => void }) {
           <Markdown text={m.content} ctx={{ taskId: m.taskId, missionId: m.missionId }} className="mt-0.5 max-h-60 overflow-y-auto text-xs text-slate-300" />
         </div>
       ))}
+      {list.length >= TEAM_PAGE && (
+        <div ref={sentinel} className="py-2 text-center text-[11px] text-slate-600">
+          {loading ? 'Loading older messages…' : hasMore ? '' : 'No older messages'}
+        </div>
+      )}
     </div>
   );
 }
@@ -430,7 +468,6 @@ function TasksPanel({ className, onTask }: { className: string; onTask: (id: str
 // ------------------------------------------------------------------ usage
 function UsagePanel({ className }: { className: string }) {
   const o = useOverview().data;
-  const alerts = useAlerts();
   const cards = useQuery({ queryKey: ['usage-overview'], queryFn: () => get<any[]>('/usage/overview') });
   const providers = useProviders();
   const cooldownOf = (id: string) => providers.data?.find((p) => p.id === id)?.cooldownUntil ?? null;
@@ -451,11 +488,6 @@ function UsagePanel({ className }: { className: string }) {
           <Mini label="Requests today" value={fmtNum(o?.usage.today.requests)} />
           <Mini label="Cost 30 days" value={fmtUsd(o?.usage.last30d.cost)} />
         </div>
-        {(alerts.data ?? []).slice(0, 3).map((a) => (
-          <div key={a.id} className={cx('rounded-md border px-2 py-1.5 text-xs', a.level === 'critical' ? 'border-rose-500/30 text-rose-200' : 'border-amber-500/30 text-amber-200')}>
-            {a.message}
-          </div>
-        ))}
         {!cards.data?.length && <div className="text-center text-xs text-slate-500">No AI connected yet.</div>}
         {(cards.data ?? []).map((c) => {
           const today = c.measured?.today ?? {};
@@ -469,7 +501,7 @@ function UsagePanel({ className }: { className: string }) {
               </div>
               <PlanUsage provider={c.provider} quotas={c.quotas as QuotaEntry[]} compact />
               {(c.quotas as QuotaEntry[])
-                .filter((q) => q.source !== 'cli')
+                .filter((q) => q.source !== 'cli' && q.percentUsed != null)
                 .slice(0, 2)
                 .map((q) => (
                   <div key={q.id} className="mt-2">

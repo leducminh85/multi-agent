@@ -564,6 +564,8 @@ const VI: Record<string, string> = {
   'Critical threshold (%)': 'Ngưỡng nghiêm trọng (%)',
   'Reset pricing?': 'Đặt lại bảng giá?',
   Reset: 'Đặt lại',
+  'Loading older messages…': 'Đang tải tin nhắn cũ…',
+  'No older messages': 'Không còn tin nhắn cũ hơn',
   'Failed – the project manager is reviewing a backup plan': 'Bị lỗi – quản lý dự án đang tìm phương án dự phòng',
   'project manager is reviewing the failure': 'quản lý dự án đang xử lý lỗi',
   'another available agent': 'một nhân viên khác đang rảnh',

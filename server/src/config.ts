@@ -16,6 +16,7 @@ export interface AppConfig {
   webDist: string;
   ffmpegPath: string;
   rateLimitPerMin: number;
+  trustProxy: string;
 }
 
 /** Load `.env` from the repo root or the server dir (without overriding real env vars). */
@@ -50,6 +51,7 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     webDist: path.resolve(env.MAO_WEB_DIST || path.join(process.cwd(), '..', 'web', 'dist')),
     ffmpegPath: env.MAO_FFMPEG_PATH || 'ffmpeg',
     rateLimitPerMin: Number(env.MAO_RATE_LIMIT_PER_MIN || 600),
+    trustProxy: env.MAO_TRUST_PROXY || 'loopback',
     ...overrides,
   };
   if (overrides.dataDir && !overrides.dbFile) cfg.dbFile = path.join(dataDir, 'office.db');

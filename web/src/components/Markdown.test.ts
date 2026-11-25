@@ -4,10 +4,10 @@ import { embedBareMedia, mediaUrl, safeUrl } from './Markdown';
 describe('embedBareMedia', () => {
   it('embeds bare local image / video paths below the line that mentions them', () => {
     const out = embedBareMedia(String.raw`Saved the chart to D:\data\workspaces\prj_1\out\chart.png for you.`);
-    expect(out).toContain('![chart.png](<D:/data/workspaces/prj_1/out/chart.png>)');
-    expect(embedBareMedia('Video: out/clip.mp4')).toContain('![clip.mp4](<out/clip.mp4>)');
-    expect(embedBareMedia('See file:///C:/x/y/pic.webp')).toContain('![pic.webp](<file:///C:/x/y/pic.webp>)');
-    expect(embedBareMedia('Ảnh: https://example.com/a/b.jpg')).toContain('![b.jpg](<https://example.com/a/b.jpg>)');
+    expect(out).toContain('![chart.png](<D:/data/workspaces/prj_1/out/chart.png> "mao:auto")');
+    expect(embedBareMedia('Video: out/clip.mp4')).toContain('![clip.mp4](<out/clip.mp4> "mao:auto")');
+    expect(embedBareMedia('See file:///C:/x/y/pic.webp')).toContain('![pic.webp](<file:///C:/x/y/pic.webp> "mao:auto")');
+    expect(embedBareMedia('Ảnh: https://example.com/a/b.jpg')).toContain('![b.jpg](<https://example.com/a/b.jpg> "mao:auto")');
   });
 
   it('leaves existing Markdown images/links, code blocks and plain file names alone', () => {

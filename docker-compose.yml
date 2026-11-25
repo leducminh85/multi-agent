@@ -1,14 +1,21 @@
+# The office in Docker, published on 127.0.0.1:4317 – the port the Cloudflare tunnel
+# (multi-agents.wevic.vn) forwards to. Stop the native server (npm start) first: both use the same port and data.
+#
+#   docker compose up -d --build
+#
 services:
   office:
     build: .
+    image: multi-agent-office:latest
+    container_name: multi-agent-office
     ports:
-      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:${MAO_PORT:-4317}:4317"
     environment:
-      # Set a stable 32-byte base64 key so credentials survive container rebuilds.
+      # Optional: a stable 32-byte base64 key. Without it the key file in the data folder is used.
       MAO_MASTER_KEY: ${MAO_MASTER_KEY:-}
     volumes:
-      - mao-data:/data
+      # Same data as the native app (team, chats, projects, workspaces, saved credentials).
+      - ${MAO_DATA_PATH:-./server/data}:/data
+      # Claude Code login from this computer (claude auth login), so Claude agents work in the container.
+      - ${CLAUDE_CREDENTIALS:-${USERPROFILE:-~}/.claude/.credentials.json}:/home/node/.claude/.credentials.json
     restart: unless-stopped
-
-volumes:
-  mao-data:

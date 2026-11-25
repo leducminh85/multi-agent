@@ -15,7 +15,9 @@ const IMAGE = /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i;
 const VIDEO = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
 const AUDIO = /\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i;
 const isRemote = (u: string) => /^(https?:|data:|blob:|mailto:|#)/i.test(u);
-const isMedia = (u: string) => IMAGE.test(u) || VIDEO.test(u) || !!youtubeId(u) || !!vimeoId(u);
+/** Title marking media found in plain text (not an explicit Markdown image): hidden if it cannot be loaded. */
+const AUTO = 'mao:auto';
+const isMedia =(u: string) => IMAGE.test(u) || VIDEO.test(u) || !!youtubeId(u) || !!vimeoId(u);
 
 /**
  * Keep local paths (Windows drive letters would otherwise be read as a URL scheme and dropped) but never allow
@@ -78,7 +80,7 @@ export function embedBareMedia(md: string): string {
       const already = md.includes(`](${p})`) || md.includes(`](<${p}>)`);
       if (already) continue;
       const name = p.split(/[\\/]/).pop() ?? 'media';
-      out.push('', `![${name}](<${p.replace(/\\/g, '/')}>)`, '');
+      out.push('', `![${name}](<${p.replace(/\\/g, '/')}> "${AUTO}")`, '');
     }
   }
   return out.join('\n');
@@ -137,12 +139,13 @@ export function inlineVideos(md: string, max = 2): string[] {
   return out;
 }
 
-function Media({ src, alt, ctx }: { src: string; alt?: string; ctx: MediaContext }) {
+function Media({ src, alt, ctx, quiet }: { src: string; alt?: string; ctx: MediaContext; quiet?: boolean }) {
   const [broken, setBroken] = useState(false);
   const url = mediaUrl(src, ctx);
   const yt = youtubeId(src);
   const vm = vimeoId(src);
   if (yt || vm) return <VideoEmbed yt={yt} vm={vm} title={alt} />;
+  if (broken && quiet) return null;
   if (broken)
     return (
       <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded border border-white/10 px-1.5 py-0.5 text-xs text-slate-400">
@@ -162,7 +165,7 @@ function Media({ src, alt, ctx }: { src: string; alt?: string; ctx: MediaContext
 /** Renders agent output: Markdown (GFM tables, task lists…) with images / videos / YouTube shown inline. */
 function MarkdownImpl({ text, ctx = {}, className }: { text: string; ctx?: MediaContext; className?: string }) {
   const components: Components = {
-    img: ({ src, alt }) => (src ? <Media src={String(src)} alt={alt} ctx={ctx} /> : null),
+    img: ({ src, alt, title }) => (src ? <Media src={String(src)} alt={alt} ctx={ctx} quiet={title === AUTO} /> : null),
     // A paragraph that is only a link to media (on its own line) shows the media itself.
     p: ({ node, children }) => {
       const kids = (node?.children ?? []).filter((c: any) => !(c.type === 'text' && !c.value.trim()));

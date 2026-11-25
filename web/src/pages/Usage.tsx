@@ -67,12 +67,6 @@ export default function UsagePage() {
         <Stat label="Without cost" value={fmtNum(t?.requests_without_cost)} hint="no price known" />
       </div>
 
-      {(alerts.data ?? []).length > 0 && (
-        <Card title={<span className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-300" /> Active alerts</span>} className="mb-5">
-          <AlertList />
-        </Card>
-      )}
-
       <div className="mb-5 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {(overview.data ?? []).map((o) => (
           <ProviderUsageCard key={o.provider.id} data={o} onAddQuota={() => setQuotaFor(o.provider)} />

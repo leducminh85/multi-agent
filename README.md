@@ -71,13 +71,19 @@ Khi nhân viên hỏi bạn (ô **Cần bạn**), có thể trả lời kèm **�
 
 Thêm nhân viên: nút **Hire** – chọn công việc, đặt tên, xong. Cấu hình chi tiết (model, quyền, giới hạn) nằm trong *Advanced settings…*.
 
-### Docker
+### Docker (và tên miền multi-agents.wevic.vn)
+
+Tunnel Cloudflare `multi-agents.wevic.vn` chuyển tới `http://localhost:4317`, nên chỉ cần **một** trong hai cách chạy dưới đây nghe ở cổng 4317:
+
+- **Chạy thường** (`npm start`) – dùng được **mọi** AI của máy: Claude và Antigravity (`agy.exe`).
+- **Docker** – tự khởi động lại, chạy nền:
 
 ```powershell
-docker compose up --build
+docker compose up -d --build
 ```
 
-Lưu ý: trong container chỉ dùng được provider API/Ollama (CLI của máy host không có trong container). Dữ liệu nằm ở volume `mao-data`.
+Tắt `npm start` trước (cùng cổng, cùng dữ liệu `server/data`). Container có sẵn ffmpeg, python, edge-tts và Claude Code CLI, dùng đăng nhập Claude của máy (`~/.claude/.credentials.json`).
+**Giới hạn:** Antigravity CLI (`agy`) chỉ có bản Windows nên **không chạy trong container** – nhân viên dùng Antigravity cần chuyển sang Claude (Thêm → Nhân viên → Đổi AI cho cả đội) khi chạy bằng Docker.
 
 ## Kiểm thử
 

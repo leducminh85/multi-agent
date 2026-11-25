@@ -16,7 +16,8 @@ import { workRoutes } from './routes/work.js';
 export function createApp(s: Services): express.Express {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  // Behind cloudflared on the same host (loopback) – or, in Docker, via the bridge network (uniquelocal).
+  app.set('trust proxy', s.config.trustProxy);
   app.use(
     helmet({
       contentSecurityPolicy: {
