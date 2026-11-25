@@ -148,6 +148,10 @@ describe('REST API', () => {
     expect(abs.status).toBe(200);
     const fileUrl = await request(app).get('/api/media').query({ path: pathToFileURL(path.join(dir, 'out', 'chart.png')).href }).set(auth());
     expect(fileUrl.status).toBe(200);
+    // The assistant chat has no project and agents often give just the file name: it is found in the workspaces.
+    const bare = await request(app).get('/api/media').query({ path: 'chart.png' }).set(auth());
+    expect(bare.status).toBe(200);
+    expect((await request(app).get('/api/media').query({ path: 'nope.png' }).set(auth())).status).toBe(404);
 
     // Escapes and files elsewhere on the machine are refused.
     expect((await request(app).get('/api/media').query({ path: '../../office.db', projectId: project.id }).set(auth())).status).toBe(403);

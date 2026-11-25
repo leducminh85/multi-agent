@@ -11,6 +11,41 @@ import { HttpError } from '../core/util.js';
 import { knowledgeInputSchema } from '../knowledge/service.js';
 import { actor, ah, str } from './helpers.js';
 
+const SKIP_DIRS = new Set(['node_modules', '.git', '.venv', '__pycache__', '.cache']);
+
+/** Newest file under `root` whose path ends with the relative path `rel` (bounded walk). */
+export function findInWorkspaces(root: string, rel: string): string | null {
+  if (!root || !fs.existsSync(root)) return null;
+  const want = rel.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+  if (!want || want.split('/').includes('..')) return null;
+  let best: { file: string; mtime: number } | null = null;
+  let visited = 0;
+  const walk = (dir: string, depth: number) => {
+    if (depth > 8 || visited > 20000) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      visited++;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!SKIP_DIRS.has(e.name)) walk(full, depth + 1);
+      } else if (e.isFile()) {
+        const norm = full.replace(/\\/g, '/').toLowerCase();
+        if (norm === want || norm.endsWith('/' + want)) {
+          const mtime = fs.statSync(full).mtimeMs;
+          if (!best || mtime > best.mtime) best = { file: full, mtime };
+        }
+      }
+    }
+  };
+  walk(path.resolve(root), 0);
+  return (best as { file: string } | null)?.file ?? null;
+}
+
 export function dataRoutes(s: Services): Router {
   const r = Router();
   const tmpDir = path.join(os.tmpdir(), 'mao-uploads');
@@ -94,8 +129,14 @@ export function dataRoutes(s: Services): Router {
     let full: string;
     if (path.isAbsolute(p) || /^[A-Za-z]:[\\/]/.test(p)) full = path.resolve(p);
     else {
-      if (!projectId) throw new HttpError(404, 'Relative path without a project');
-      full = path.resolve(s.projects.workspaceDir(projectId), p);
+      const inProject = projectId ? path.resolve(s.projects.workspaceDir(projectId), p) : '';
+      // The assistant chat has no project, and agents often name just the file ("final_video.mp4"):
+      // find it in the project workspace first, then across all workspaces (newest match).
+      full =
+        inProject && fs.existsSync(inProject)
+          ? inProject
+          : (findInWorkspaces(projectId ? s.projects.workspaceDir(projectId) : '', p) ?? findInWorkspaces(s.config.workspacesDir, p) ?? inProject);
+      if (!full) throw new HttpError(404, 'File not found');
     }
     const inside = roots.some((root) => full === root || full.toLowerCase().startsWith((root + path.sep).toLowerCase()));
     if (!inside) throw new HttpError(403, 'Only files inside the office workspaces can be shown');

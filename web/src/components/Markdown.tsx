@@ -146,7 +146,7 @@ function Media({ src, alt, ctx }: { src: string; alt?: string; ctx: MediaContext
   if (broken)
     return (
       <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded border border-white/10 px-1.5 py-0.5 text-xs text-slate-400">
-        🖼 {alt || src.split(/[\\/]/).pop()} <span className="text-slate-600">(cannot be shown)</span>
+        {VIDEO.test(src) ? '▶' : '🖼'} {alt || src.split(/[\\/]/).pop()} <span className="text-slate-600">(cannot be shown)</span>
       </a>
     );
   if (VIDEO.test(src)) return <video controls preload="metadata" src={url} className="my-2 block max-h-[420px] w-full max-w-2xl rounded-lg border border-white/10 bg-black" onError={() => setBroken(true)} />;
