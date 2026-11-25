@@ -1,6 +1,7 @@
 import { Bot, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
 import AgentDrawer from '../components/AgentDrawer';
+import { useConnectableAis } from '../components/AgentAiPicker';
 import QuickAgentModal from '../components/QuickAgentModal';
 import TaskDrawer from '../components/TaskDrawer';
 import { ActivityBadge, Badge, Empty, Field, Modal, PageHeader, Spinner, useConfirm, useToast } from '../components/ui';
@@ -158,11 +159,20 @@ function SwitchTeamAi() {
   const confirm = useConfirm();
   const qc = useQueryClient();
   const toast = useToast();
+  const { connectable, connect } = useConnectableAis();
   const usable = (providers.data ?? []).filter((p) => p.canExecute && p.enabled);
-  if (usable.length < 2 || !agents.data?.length) return null;
-  const run = async (providerId: string) => {
-    const p = usable.find((x) => x.id === providerId);
+  if (usable.length + connectable.length < 2 || !agents.data?.length) return null;
+  const run = async (value: string) => {
+    let p = usable.find((x) => x.id === value);
+    if (!p && value.startsWith('connect:')) {
+      try {
+        p = (await connect(value.slice('connect:'.length))) ?? undefined;
+      } catch (e: any) {
+        return toast.push({ kind: 'error', text: e.message });
+      }
+    }
     if (!p) return;
+    const providerId = p.id;
     const list = agents.data!.filter((a) => a.providerId !== providerId);
     if (!list.length) return toast.push({ kind: 'info', text: `Everyone already uses ${p.name}` });
     if (!(await confirm({ title: `Switch the whole team to ${p.name}?`, message: `${list.length} employee(s) will use ${p.name} with its default model for new work. Work already running is not interrupted.`, confirmText: 'Switch' }))) return;
@@ -176,6 +186,11 @@ function SwitchTeamAi() {
       {usable.map((p) => (
         <option key={p.id} value={p.id}>
           {p.name}
+        </option>
+      ))}
+      {connectable.map((c) => (
+        <option key={c.type} value={`connect:${c.type}`}>
+          {`${c.label} – ${c.loggedIn === false ? 'sign in to connect' : 'not connected yet, choose to connect'}`}
         </option>
       ))}
     </select>

@@ -369,6 +369,7 @@ const VI: Record<string, string> = {
   'AI & model': 'AI & model',
   'Default (recommended)': 'Mặc định (khuyên dùng)',
   'provider default': 'mặc định',
+  'A Claude sign-in window opened. Finish signing in in your browser, then choose Claude again.': 'Cửa sổ đăng nhập Claude đã mở. Đăng nhập trên trình duyệt xong thì chọn lại Claude.',
   'Loading models…': 'Đang tải danh sách model…',
   'Switch whole team to…': 'Đổi AI cho cả đội…',
   'Switch the whole team to another AI': 'Đổi AI cho cả đội',
@@ -545,6 +546,8 @@ const VI: Record<string, string> = {
 
 /** Dynamic strings: [pattern, replacement]. Applied to whole (trimmed) text nodes. */
 const PATTERNS: [RegExp, string][] = [
+  [/^(.+) – not connected yet, choose to connect$/, '$1 – chưa kết nối, chọn để kết nối'],
+  [/^(.+) – sign in to connect$/, '$1 – cần đăng nhập để kết nối'],
   [/^(.+) now uses the selected AI$/, '$1 đã chuyển sang AI mới'],
   [/^Switch the whole team to (.+)\?$/, 'Đổi cả đội sang $1?'],
   [/^(\d+) employee\(s\) will use (.+) with its default model for new work\. Work already running is not interrupted\.$/, '$1 nhân viên sẽ dùng $2 (model mặc định) cho việc mới. Việc đang chạy không bị ngắt.'],
