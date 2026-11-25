@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Menu,
   MessagesSquare,
   OctagonX,
   Play,
@@ -17,21 +18,21 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { post } from '../lib/api';
 import { useAlerts, useApprovals, useOverview } from '../lib/hooks';
 import { timeAgo } from '../lib/format';
 import { useRealtimeStatus } from '../lib/realtime';
 import { cx, useConfirm, useToast } from './ui';
 
-const NAV = [
-  { to: '/', label: 'Overview', icon: LayoutDashboard },
-  { to: '/office', label: 'Virtual Office', icon: Building2 },
-  { to: '/agents', label: 'Agents', icon: Bot },
-  { to: '/tasks', label: 'Tasks', icon: ListChecks },
-  { to: '/communication', label: 'Communication', icon: MessagesSquare },
-  { to: '/usage', label: 'Usage & Quota', icon: Gauge },
-  { to: '/projects', label: 'Projects & Knowledge', icon: FolderKanban },
+/** The dashboard is the whole app for day-to-day use; everything else sits in the "More" menu. */
+const MORE = [
+  { to: '/agents', label: 'Employees (agents)', icon: Bot },
+  { to: '/tasks', label: 'Tasks: Kanban, timeline, Gantt', icon: ListChecks },
+  { to: '/usage', label: 'Usage & quotas', icon: Gauge },
+  { to: '/communication', label: 'All conversations', icon: MessagesSquare },
+  { to: '/office', label: 'Virtual office (full screen)', icon: Building2 },
+  { to: '/projects', label: 'Projects & knowledge', icon: FolderKanban },
   { to: '/files', label: 'Files', icon: FolderOpen },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -45,7 +46,9 @@ export default function Layout({ user, onLogout, children }: { user: { username:
   const toast = useToast();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showAlerts, setShowAlerts] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const stopped = !!overview.data?.emergencyStopped;
   const attention = (alerts.data?.length ?? 0) + (approvals.data?.length ?? 0) + (overview.data?.waitingForManager ?? 0);
 
@@ -68,51 +71,45 @@ export default function Layout({ user, onLogout, children }: { user: { username:
   };
 
   return (
-    <div className="flex h-full">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-white/5 bg-ink-900/60 md:flex">
-        <div className="flex items-center gap-2.5 px-4 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-500 to-fuchsia-500 text-white shadow-glow">
-            <Building2 className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-white">AI Office</div>
-            <div className="text-[11px] text-slate-500">Virtual AI Workforce</div>
-          </div>
-        </div>
-        <nav className="flex-1 space-y-0.5 px-2">
-          {NAV.map((n) => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              end={n.to === '/'}
-              className={({ isActive }) =>
-                cx('flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition', isActive ? 'bg-accent-600/15 text-white shadow-[inset_2px_0_0_#818cf8]' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200')
-              }
-            >
-              <n.icon className="h-4 w-4" />
-              {n.label}
+    <div className="flex h-full flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-ink-900/60 px-3 backdrop-blur md:px-4">
+          <NavLink to="/" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-accent-500 to-fuchsia-500 text-white shadow-glow">
+              <Building2 className="h-4 w-4" />
+            </div>
+            <span className="hidden text-sm font-semibold text-white sm:inline">AI Office</span>
+          </NavLink>
+          {location.pathname !== '/' && (
+            <NavLink to="/" className="btn-ghost btn-sm">
+              <LayoutDashboard className="h-4 w-4" /> Dashboard
             </NavLink>
-          ))}
-        </nav>
-        <div className="border-t border-white/5 p-3 text-xs text-slate-500">
-          <div className="flex items-center justify-between">
-            <span className="truncate">👤 {user.username}</span>
-            <button className="btn-ghost btn-sm" onClick={onLogout} title="Sign out">
-              <LogOut className="h-3.5 w-3.5" />
+          )}
+          <div className="relative">
+            <button className="btn-ghost btn-sm" onClick={() => setShowMore((v) => !v)}>
+              <Menu className="h-4 w-4" /> More
             </button>
+            {showMore && <div className="fixed inset-0 z-20" onClick={() => setShowMore(false)} />}
+            {showMore && (
+              <div className="card absolute left-0 top-10 z-30 w-64 p-1.5 shadow-2xl">
+                {MORE.map((n) => (
+                  <NavLink
+                    key={n.to}
+                    to={n.to}
+                    onClick={() => setShowMore(false)}
+                    className={({ isActive }) => cx('flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm', isActive ? 'bg-accent-600/15 text-white' : 'text-slate-300 hover:bg-white/5')}
+                  >
+                    <n.icon className="h-4 w-4 text-slate-400" />
+                    {n.label}
+                  </NavLink>
+                ))}
+                <div className="my-1 border-t border-white/5" />
+                <button className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-white/5" onClick={onLogout}>
+                  <LogOut className="h-4 w-4" /> Sign out ({user.username})
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-ink-900/40 px-4 backdrop-blur">
-          <select className="input w-auto md:hidden" value={location.pathname} onChange={(e) => navigate(e.target.value)}>
-            {NAV.map((n) => (
-              <option key={n.to} value={n.to}>
-                {n.label}
-              </option>
-            ))}
-          </select>
           <div className="flex items-center gap-2 text-xs text-slate-400">
             {rt === 'open' ? <Wifi className="h-3.5 w-3.5 text-emerald-400" /> : <WifiOff className="h-3.5 w-3.5 text-rose-400" />}
             <span className="hidden sm:inline">{rt === 'open' ? 'Live' : rt === 'connecting' ? 'Connecting…' : 'Offline'}</span>
@@ -158,7 +155,7 @@ export default function Layout({ user, onLogout, children }: { user: { username:
             <span className="hidden sm:inline">{stopped ? 'Resume' : 'Stop all'}</span>
           </button>
         </header>
-        <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto p-3 md:p-4">{children}</main>
       </div>
     </div>
   );

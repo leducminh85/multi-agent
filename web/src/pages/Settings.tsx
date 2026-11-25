@@ -1,5 +1,6 @@
+import SetupWizard from '../components/SetupWizard';
 import { useQuery } from '@tanstack/react-query';
-import { Archive, Check, Download, KeyRound, Pencil, Plug, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react';
+import { Archive, Check, Download, KeyRound, Pencil, Plug, Plus, RefreshCw, Shield, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Badge, Card, Empty, Field, Modal, PageHeader, Spinner, StatusBadge, Tabs, Toggle, useConfirm } from '../components/ui';
 import { del, downloadUrl, get, patch, post, put } from '../lib/api';
@@ -51,18 +52,25 @@ function ProvidersTab() {
   const types = useProviderTypes();
   const [editing, setEditing] = useState<{ provider?: Provider; type?: ProviderDescriptor } | null>(null);
   const [picking, setPicking] = useState(false);
+  const [wizard, setWizard] = useState(false);
   const confirm = useConfirm();
   const remove = useAction((id: string) => del(`/providers/${id}`), { success: 'Provider removed', invalidate: [['providers']] });
   const check = useAction((id: string) => post(`/providers/${id}/check`), { success: (r: any) => (r.ok ? `OK – ${r.message}` : `Failed – ${r.message}`), invalidate: [['providers']] });
 
   return (
     <div className="space-y-5">
+      <SetupWizard open={wizard} onClose={() => setWizard(false)} />
       <Card
         title="Connected providers"
         actions={
-          <button className="btn-primary btn-sm" onClick={() => setPicking(true)}>
-            <Plus className="h-3.5 w-3.5" /> Add provider
-          </button>
+          <>
+            <button className="btn-primary btn-sm" onClick={() => setWizard(true)}>
+              <Sparkles className="h-3.5 w-3.5" /> Quick connect
+            </button>
+            <button className="btn-outline btn-sm" onClick={() => setPicking(true)}>
+              <Plus className="h-3.5 w-3.5" /> Add provider (advanced)
+            </button>
+          </>
         }
       >
         {!providers.data?.length && <Empty icon={<Plug className="h-8 w-8" />} title="No providers yet">Add an API key, a local CLI (Claude Code, Codex, Antigravity) or a local Ollama server.</Empty>}

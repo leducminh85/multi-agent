@@ -8,7 +8,7 @@ import { useAction, useAgents, useApprovals, useMessages, useTasks } from '../li
 import { timeAgo } from '../lib/format';
 import type { Message } from '../lib/types';
 
-const KIND_STYLE: Record<string, string> = {
+export const KIND_STYLE: Record<string, string> = {
   result: 'border-emerald-500/30 text-emerald-300',
   help_request: 'border-violet-500/30 text-violet-300',
   error: 'border-rose-500/30 text-rose-300',
@@ -43,7 +43,7 @@ export default function CommunicationPage() {
   );
 }
 
-function Bubble({ m, onTask }: { m: Message; onTask: (id: string) => void }) {
+export function Bubble({ m, onTask }: { m: Message; onTask: (id: string) => void }) {
   const mine = m.fromType === 'user';
   return (
     <div className={cx('flex gap-2', mine && 'flex-row-reverse')}>

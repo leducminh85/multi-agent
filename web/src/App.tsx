@@ -6,11 +6,11 @@ import { Spinner } from './components/ui';
 import { get, setToken, setUnauthorizedHandler } from './lib/api';
 import { connectRealtime } from './lib/realtime';
 import AgentsPage from './pages/Agents';
+import DashboardPage from './pages/Dashboard';
 import CommunicationPage from './pages/Communication';
 import FilesPage from './pages/Files';
 import LoginPage from './pages/Login';
 import OfficePage from './pages/Office';
-import OverviewPage from './pages/Overview';
 import ProjectsPage from './pages/Projects';
 import SettingsPage from './pages/Settings';
 import TasksPage from './pages/Tasks';
@@ -69,7 +69,7 @@ export default function App() {
       }}
     >
       <Routes>
-        <Route path="/" element={<OverviewPage />} />
+        <Route path="/" element={<DashboardPage />} />
         <Route path="/office" element={<OfficePage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/tasks" element={<TasksPage />} />

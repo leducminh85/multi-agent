@@ -4,6 +4,34 @@ import { requireConfirmation } from '../auth/auth.js';
 import type { Services } from '../container.js';
 import { quotaInputSchema } from '../usage/service.js';
 import { actor, ah, str } from './helpers.js';
+import { cliVersion } from '../providers/cli.js';
+import { httpJson } from '../providers/http.js';
+
+/** What can be connected on this machine without any technical input (used by the quick-setup wizard). */
+async function detectLocal() {
+  const clis = [
+    { type: 'claude-code-cli', command: 'claude', label: 'Claude Code' },
+    { type: 'codex-cli', command: 'codex', label: 'OpenAI Codex' },
+    { type: 'antigravity-cli', command: 'agy', label: 'Google Antigravity' },
+  ];
+  const cli = await Promise.all(
+    clis.map(async (c) => {
+      try {
+        return { ...c, found: true, version: await cliVersion(c.command) };
+      } catch {
+        return { ...c, found: false, version: null };
+      }
+    }),
+  );
+  let ollama: { found: boolean; models: string[] } = { found: false, models: [] };
+  try {
+    const { data } = await httpJson<{ models?: { name: string }[] }>('http://127.0.0.1:11434/api/tags', { timeoutMs: 2500 });
+    ollama = { found: true, models: (data.models ?? []).map((m) => m.name) };
+  } catch {
+    /* not running */
+  }
+  return { cli, ollama };
+}
 
 export function providerRoutes(s: Services): Router {
   const r = Router();
@@ -11,6 +39,13 @@ export function providerRoutes(s: Services): Router {
   r.get('/provider-types', (_req, res) => {
     res.json(s.registry.list().map((a) => a.descriptor));
   });
+
+  r.get(
+    '/providers/detect',
+    ah(async (_req, res) => {
+      res.json(await detectLocal());
+    }),
+  );
 
   r.get('/providers', (_req, res) => {
     res.json(s.providers.list());

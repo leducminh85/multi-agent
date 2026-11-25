@@ -1,7 +1,7 @@
 import { Bot, Pause, Play, Plus, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
 import AgentDrawer from '../components/AgentDrawer';
-import AgentForm from '../components/AgentForm';
+import QuickAgentModal from '../components/QuickAgentModal';
 import TaskDrawer from '../components/TaskDrawer';
 import { ActivityBadge, Badge, Empty, Field, Modal, PageHeader, Spinner, useConfirm } from '../components/ui';
 import { del, post } from '../lib/api';
@@ -31,7 +31,7 @@ export default function AgentsPage() {
               <Users className="h-4 w-4" /> Default team
             </button>
             <button className="btn-primary" onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4" /> New agent
+              <Plus className="h-4 w-4" /> Hire employee
             </button>
           </>
         }
@@ -51,7 +51,7 @@ export default function AgentsPage() {
           ))}
         </div>
       )}
-      <AgentForm open={creating} onClose={() => setCreating(false)} />
+      <QuickAgentModal open={creating} onClose={() => setCreating(false)} />
       <TeamModal open={teamOpen} onClose={() => setTeamOpen(false)} />
       <AgentDrawer agentId={selected} onClose={() => setSelected(null)} onOpenTask={setTaskId} />
       <TaskDrawer taskId={taskId} onClose={() => setTaskId(null)} onOpenTask={setTaskId} />

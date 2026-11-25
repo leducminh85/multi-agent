@@ -50,6 +50,15 @@ describe('REST API', () => {
     expect(JSON.stringify(audit.body)).not.toContain('sk-secret');
   });
 
+  it('detects locally available AIs for the quick-setup wizard', async () => {
+    const res = await request(app).get('/api/providers/detect').set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.cli.map((c: any) => c.type).sort()).toEqual(['antigravity-cli', 'claude-code-cli', 'codex-cli']);
+    for (const c of res.body.cli) expect(typeof c.found).toBe('boolean');
+    expect(typeof res.body.ollama.found).toBe('boolean');
+    expect(Array.isArray(res.body.ollama.models)).toBe(true);
+  }, 60_000);
+
   it('creates agents, lists provider types and assigns work', async () => {
     const types = await request(app).get('/api/provider-types').set(auth());
     const typeIds = types.body.map((t: any) => t.type);

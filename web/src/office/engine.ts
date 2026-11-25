@@ -73,7 +73,7 @@ export class OfficeEngine {
 
   constructor(
     private canvas: HTMLCanvasElement,
-    private opts: { onSelect: (id: string | null) => void },
+    private opts: { onSelect: (id: string | null) => void; fill?: boolean },
   ) {
     this.ctx = canvas.getContext('2d')!;
     this.bg = document.createElement('canvas');
@@ -250,7 +250,7 @@ export class OfficeEngine {
     const parent = this.canvas.parentElement!;
     const dpr = window.devicePixelRatio || 1;
     const cw = parent.clientWidth;
-    const ch = Math.max(320, Math.min(parent.clientWidth * (H / W), window.innerHeight - 180));
+    const ch = this.opts.fill ? Math.max(200, parent.clientHeight) : Math.max(320, Math.min(parent.clientWidth * (H / W), window.innerHeight - 180));
     this.canvas.style.width = `${cw}px`;
     this.canvas.style.height = `${ch}px`;
     this.canvas.width = Math.floor(cw * dpr);

@@ -55,14 +55,15 @@ npm run build
 npm start
 ```
 
-Lần đầu mở trang, tạo tài khoản quản lý (CEO). Sau đó:
+Lần đầu mở trang, tạo tài khoản quản lý (CEO). Sau đó trình **Set up your office** tự mở:
 
-1. **Settings → Providers → Add provider**: chọn API (nhập key), CLI (`claude`/`codex`/`agy` đã đăng nhập trên máy), Ollama, hoặc endpoint OpenAI-compatible. Nhấn *Test*.
-2. **Agents → Default team** (6 agent) hoặc tạo từng agent.
-3. Mô tả công việc trong **Command Center** (Overview) – hoặc chat với CEO Assistant ở **Communication**.
-4. Quan sát ở **Virtual Office** / **Tasks**; trả lời câu hỏi và phê duyệt ở biểu tượng chuông.
-5. **Usage & Quota**: thêm admin key để đồng bộ chi phí; với gói đăng ký, thêm *Subscription account (tracking only)* và nhập quota thủ công từ trang usage chính thức của nhà cung cấp.
-6. **Settings → Media**: chọn provider phiên âm (OpenAI/Gemini) và vision cho ảnh/video.
+1. Hệ thống tự dò AI có sẵn trên máy (Claude Code, Codex, Antigravity, Ollama). Bấm vào cái muốn dùng – hoặc chọn Claude/ChatGPT/Gemini và dán API key. Không cần điền gì khác: model và cấu hình được chọn sẵn, kết nối được kiểm tra thật.
+2. Hệ thống tự tạo đội 6 nhân viên AI.
+3. Gõ yêu cầu vào ô **Assign work** ở đầu dashboard (có thể đính kèm file, ghi âm).
+
+**Dashboard một màn hình** gồm 4 ô cập nhật realtime: **Virtual office** (click vào nhân vật để xem/giao việc), **Communication** (chat với trợ lý, tin nhắn giữa các agent, mục *Needs you* để phê duyệt/trả lời), **Tasks** (yêu cầu, đang làm, xong, lỗi) và **Usage** (token, chi phí, quota từng AI). Các trang chi tiết (nhân viên, Kanban/Gantt, usage đầy đủ, dự án, file, cài đặt) nằm trong menu **More**.
+
+Thêm nhân viên: nút **Hire** – chọn công việc, đặt tên, xong. Cấu hình chi tiết (model, quyền, giới hạn) nằm trong *Advanced settings…*.
 
 ### Docker
 
@@ -78,7 +79,7 @@ Lưu ý: trong container chỉ dùng được provider API/Ollama (CLI của má
 npm test
 ```
 
-- Server: 54 test (vitest) – mã hoá, giao thức agent, parser kế hoạch, orchestrator (song song, phụ thuộc, retry, huỷ, emergency stop, uỷ quyền, hỏi quản lý, phê duyệt, memory, giao lại), usage/quota/cảnh báo, REST API (xác thực, không lộ credential, cổng xác nhận, upload), trích xuất file. Dùng một adapter *mock* chỉ có trong test.
+- Server: 55 test (vitest) – mã hoá, giao thức agent, parser kế hoạch, orchestrator (song song, phụ thuộc, retry, huỷ, emergency stop, uỷ quyền, hỏi quản lý, phê duyệt, memory, giao lại), usage/quota/cảnh báo, REST API (xác thực, không lộ credential, cổng xác nhận, upload), trích xuất file. Dùng một adapter *mock* chỉ có trong test.
 - Web: test layout văn phòng ảo.
 - Đã chạy end-to-end thật với Ollama (`qwen2.5:3b`): lập kế hoạch → 3 task trên 3 agent → tổng hợp → báo cáo; và kiểm chứng adapter Antigravity CLI với `agy` thật.
 
