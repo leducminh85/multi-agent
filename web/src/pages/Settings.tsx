@@ -1,3 +1,4 @@
+import QuotaRecovery from '../components/QuotaRecovery';
 import SetupWizard from '../components/SetupWizard';
 import { useQuery } from '@tanstack/react-query';
 import { Archive, Check, Download, KeyRound, Pencil, Plug, Plus, RefreshCw, Shield, Sparkles, Trash2 } from 'lucide-react';
@@ -93,6 +94,7 @@ function ProvidersTab() {
                   {Object.entries(p.credentialHints).map(([k, v]) => ` · ${k}: ${v}`)}
                 </div>
                 {p.statusMessage && <div className="truncate text-xs text-slate-500">{p.statusMessage} {p.lastCheckedAt && `(${timeAgo(p.lastCheckedAt)})`}</div>}
+                <QuotaRecovery provider={p} />
               </div>
               {p.type === 'claude-code-cli' && p.status === 'error' && (
                 <button className="btn-primary btn-sm" onClick={() => claudeLogin.mutate()}>

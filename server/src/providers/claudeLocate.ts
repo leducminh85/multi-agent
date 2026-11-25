@@ -159,6 +159,24 @@ export async function claudeAuthStatus(command: string): Promise<ClaudeAuth | nu
  * Open the official interactive sign-in (`claude auth login`) in its own visible console window on this
  * computer. The user completes it in the browser; nothing about the credentials passes through the office.
  */
+/**
+ * Open an interactive Antigravity CLI session in its own console window. `agy` keeps its own sign-in
+ * (separate from the Antigravity app); the user switches account there with /logout then /login.
+ */
+export function openAntigravityConsole(command = 'agy'): { opened: boolean; manualCommand: string } {
+  const manualCommand = command;
+  if (!IS_WIN || /["&|<>^%\r\n]/.test(command)) return { opened: false, manualCommand };
+  const child = spawn('cmd.exe', ['/d', '/s', '/c', `start "Antigravity – type /logout then /login" "${command}"`], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: false,
+    windowsVerbatimArguments: true,
+  });
+  child.on('error', () => undefined);
+  child.unref();
+  return { opened: true, manualCommand };
+}
+
 export function openClaudeLogin(command: string): { opened: boolean; manualCommand: string } {
   const manualCommand = `"${command}" auth login`;
   if (!IS_WIN || /["&|<>^%\r\n]/.test(command)) return { opened: false, manualCommand };

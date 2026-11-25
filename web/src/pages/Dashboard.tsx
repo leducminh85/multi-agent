@@ -6,6 +6,7 @@ import AgentDrawer from '../components/AgentDrawer';
 import CommandCenter from '../components/CommandCenter';
 import MissionList from '../components/MissionList';
 import QuickAgentModal from '../components/QuickAgentModal';
+import QuotaRecovery from '../components/QuotaRecovery';
 import SetupWizard from '../components/SetupWizard';
 import TaskDrawer from '../components/TaskDrawer';
 import { Badge, cx, Empty, ProgressBar } from '../components/ui';
@@ -446,6 +447,8 @@ function UsagePanel({ className }: { className: string }) {
   const o = useOverview().data;
   const alerts = useAlerts();
   const cards = useQuery({ queryKey: ['usage-overview'], queryFn: () => get<any[]>('/usage/overview') });
+  const providers = useProviders();
+  const cooldownOf = (id: string) => providers.data?.find((p) => p.id === id)?.cooldownUntil ?? null;
   return (
     <Panel
       className={className}
@@ -488,7 +491,10 @@ function UsagePanel({ className }: { className: string }) {
                   <ProgressBar value={q.percentUsed ?? 0} tone={(q.percentUsed ?? 0) >= 90 ? 'bad' : (q.percentUsed ?? 0) >= 70 ? 'warn' : 'good'} />
                 </div>
               ))}
-              {c.provider.status === 'error' && c.provider.statusMessage && <div className="mt-1 line-clamp-2 text-[11px] text-rose-300">{c.provider.statusMessage}</div>}
+              {c.provider.status === 'error' && c.provider.statusMessage && !cooldownOf(c.provider.id) && (
+                <div className="mt-1 line-clamp-2 text-[11px] text-rose-300">{c.provider.statusMessage}</div>
+              )}
+              <QuotaRecovery provider={{ ...c.provider, cooldownUntil: cooldownOf(c.provider.id) }} />
             </div>
           );
         })}

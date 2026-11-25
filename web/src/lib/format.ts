@@ -1,3 +1,4 @@
+import { getLang } from './i18n';
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return '—';
   const diff = Date.now() - new Date(iso).getTime();
@@ -25,7 +26,8 @@ export function formatDuration(ms: number): string {
 
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString();
+  // Follow the interface language (vi: "02:35 2/12/2026"), not the browser default (en-US "12/2/2026").
+  return new Date(iso).toLocaleString(getLang() === 'vi' ? 'vi-VN' : undefined);
 }
 
 export function fmtNum(n: number | null | undefined): string {

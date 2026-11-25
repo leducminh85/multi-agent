@@ -119,7 +119,7 @@ export default function AgentAiPicker({ agent }: { agent: Agent }) {
           {usable.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
-              {p.status === 'error' ? ' (connection problem)' : ''}
+              {p.cooldownUntil ? ' (out of quota – using another AI)' : p.status === 'error' ? ' (connection problem)' : ''}
             </option>
           ))}
           {connectable.map((c) => (

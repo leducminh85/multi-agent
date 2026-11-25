@@ -6,6 +6,7 @@ describe('Vietnamese interface translation', () => {
     expect(translateText('Virtual office')).toBe('Văn phòng ảo');
     expect(translateText('  Launch mission ')).toBe('  Giao việc ');
     expect(translateText('Approve')).toBe('Duyệt');
+    expect(translateText(' (out of quota – using another AI)')).toBe(' (hết hạn mức – đang dùng AI khác)');
   });
 
   it('translates dynamic messages through patterns', () => {

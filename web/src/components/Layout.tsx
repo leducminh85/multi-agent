@@ -74,7 +74,7 @@ export default function Layout({ user, onLogout, children }: { user: { username:
   return (
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-ink-900/60 px-3 backdrop-blur md:px-4">
+        <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-white/5 bg-ink-900/60 px-3 backdrop-blur sm:gap-3 md:px-4">
           <NavLink to="/" className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-accent-500 to-fuchsia-500 text-white shadow-glow">
               <Building2 className="h-4 w-4" />
@@ -92,7 +92,7 @@ export default function Layout({ user, onLogout, children }: { user: { username:
             </button>
             {showMore && <div className="fixed inset-0 z-20" onClick={() => setShowMore(false)} />}
             {showMore && (
-              <div className="card absolute left-0 top-10 z-30 w-64 p-1.5 shadow-2xl">
+              <div className="card absolute left-0 top-10 z-30 max-h-[80vh] w-64 overflow-y-auto bg-ink-900 p-1.5 shadow-2xl">
                 {MORE.map((n) => (
                   <NavLink
                     key={n.to}
@@ -128,8 +128,9 @@ export default function Layout({ user, onLogout, children }: { user: { username:
               <Bell className="h-4 w-4" />
               {attention > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{attention}</span>}
             </button>
+            {showAlerts && <div className="fixed inset-0 z-20" onClick={() => setShowAlerts(false)} />}
             {showAlerts && (
-              <div className="card absolute right-0 top-11 z-30 w-96 p-2 shadow-2xl" onMouseLeave={() => setShowAlerts(false)}>
+              <div className="card fixed inset-x-3 top-14 z-30 max-h-[70vh] overflow-y-auto bg-ink-900 p-2 shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 sm:w-96">
                 <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Needs attention</div>
                 {!attention && <div className="px-2 py-4 text-sm text-slate-500">Nothing needs your attention.</div>}
                 {(approvals.data ?? []).map((a) => (

@@ -5,8 +5,9 @@ import type { Services } from '../container.js';
 import { quotaInputSchema } from '../usage/service.js';
 import { actor, ah, str } from './helpers.js';
 import { cliVersion } from '../providers/cli.js';
-import { claudeAuthStatus, findClaudeBinaries, openClaudeLogin } from '../providers/claudeLocate.js';
+import { claudeAuthStatus, findClaudeBinaries, openAntigravityConsole, openClaudeLogin } from '../providers/claudeLocate.js';
 import { httpJson } from '../providers/http.js';
+import { formatReset, parseQuota } from '../providers/quota.js';
 
 /** What can be connected on this machine without any technical input (used by the quick-setup wizard). */
 async function detectLocal() {
@@ -70,8 +71,63 @@ export function providerRoutes(s: Services): Router {
   );
 
   r.get('/providers', (_req, res) => {
-    res.json(s.providers.list());
+    // Include an active out-of-quota cooldown so the UI can show "reopens at …" and offer recovery.
+    res.json(
+      s.providers.list().map((p) => {
+        const cd = s.providers.cooldown(p.id);
+        return { ...p, cooldownUntil: cd ? cd.until.toISOString() : null };
+      }),
+    );
   });
+
+  /** "I switched account / added quota": forget the cooldown and re-test now. */
+  r.post(
+    '/providers/:id/clear-cooldown',
+    ah(async (req, res) => {
+      const id = req.params.id;
+      s.providers.clearCooldown(id);
+      s.audit.log(actor(req), 'provider.clear_cooldown', { type: 'provider', id }, {}, req.ip);
+      const check = await s.providers.check(id);
+      if (!check.ok) return void res.json(check);
+      // A reachable CLI may still be out of quota: verify with one tiny real request (a few tokens).
+      const ctx = s.providers.context(id);
+      const adapter = s.registry.get(ctx.type);
+      try {
+        await adapter.run(ctx, {
+          system: 'Reply with exactly: ok',
+          messages: [{ role: 'user', content: 'ok?' }],
+          maxTokens: 16,
+          timeoutMs: 120_000,
+          signal: AbortSignal.timeout(150_000),
+          permissions: { knowledgeScopes: [], fileAccess: 'none', allowCommandExecution: false, allowFileWrite: false, allowNetwork: false, canDelegate: false, canMessageAgents: false, requireApprovalForSensitiveActions: true },
+        });
+        s.providers.setStatus(id, 'connected', 'Quota available – test request succeeded');
+        res.json({ ok: true, message: 'Quota available – test request succeeded' });
+      } catch (e: any) {
+        const msg = String(e?.message ?? e);
+        const q = parseQuota(msg);
+        if (q) {
+          const message = `${ctx.name} is out of quota – resets in ${formatReset(q.resetAt)}`;
+          s.providers.setCooldown(id, q.resetAt, message);
+          return void res.json({ ok: false, message });
+        }
+        s.providers.setStatus(id, 'error', msg);
+        res.json({ ok: false, message: msg });
+      }
+    }),
+  );
+
+  /** Open an interactive `agy` window where the user switches the Antigravity CLI account. */
+  r.post(
+    '/providers/:id/antigravity-console',
+    ah((req, res) => {
+      const ctx = s.providers.context(req.params.id);
+      if (ctx.type !== 'antigravity-cli') return void res.status(400).json({ error: 'Not an Antigravity provider' });
+      const r2 = openAntigravityConsole(String(ctx.config.command || 'agy'));
+      s.audit.log(actor(req), 'provider.antigravity_console_opened', { type: 'provider', id: req.params.id }, { opened: r2.opened }, req.ip);
+      res.json(r2);
+    }),
+  );
 
   r.post(
     '/providers',

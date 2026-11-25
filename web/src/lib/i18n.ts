@@ -216,7 +216,8 @@ const VI: Record<string, string> = {
   'All-rounder': 'Đa năng',
   'Handles general tasks': 'Làm các việc chung',
   'Connect an AI first (Set up button on the dashboard).': 'Hãy kết nối một AI trước (nút Thiết lập trên bảng điều khiển).',
-  ' (connection problem)': ' (lỗi kết nối)',
+  '(connection problem)': '(lỗi kết nối)',
+  '(out of quota – using another AI)': '(hết hạn mức – đang dùng AI khác)',
 
   // ---- generic
   Cancel: 'Huỷ',
@@ -369,6 +370,9 @@ const VI: Record<string, string> = {
   'AI & model': 'AI & model',
   'Default (recommended)': 'Mặc định (khuyên dùng)',
   'provider default': 'mặc định',
+  'Switch account': 'Đổi tài khoản',
+  'Retry now': 'Thử lại ngay',
+  'An Antigravity window opened. Type /logout, press Enter, then /login and sign in with the new account. Then press Retry now.': 'Cửa sổ Antigravity đã mở. Gõ /logout, Enter, rồi gõ /login và đăng nhập tài khoản mới. Xong thì bấm Thử lại ngay.',
   'A Claude sign-in window opened. Finish signing in in your browser, then choose Claude again.': 'Cửa sổ đăng nhập Claude đã mở. Đăng nhập trên trình duyệt xong thì chọn lại Claude.',
   'Loading models…': 'Đang tải danh sách model…',
   'Switch whole team to…': 'Đổi AI cho cả đội…',
@@ -546,6 +550,10 @@ const VI: Record<string, string> = {
 
 /** Dynamic strings: [pattern, replacement]. Applied to whole (trimmed) text nodes. */
 const PATTERNS: [RegExp, string][] = [
+  [/^Out of quota – reopens (.+)\. Meanwhile the office uses another connected AI\.$/, 'Hết hạn mức – mở lại lúc $1. Trong lúc chờ, văn phòng dùng AI khác đã kết nối.'],
+  [/^(.+) is available again\.$/, '$1 đã dùng lại được.'],
+  [/^Still not available: (.+)$/, 'Vẫn chưa dùng được: $1'],
+  [/^Open a terminal, run "(.+)", type \/logout then \/login\. Then press Retry now\.$/, 'Mở terminal, chạy "$1", gõ /logout rồi /login. Sau đó bấm Thử lại ngay.'],
   [/^(.+) is out of quota( \(rate limit\))? – resets in (.+?)( \(estimated\))?\. Work for (.+) and other employees on (.+) continues on (.+) until then\.$/, '$1 đã hết hạn mức$2 – mở lại sau $3$4. Việc của $5 và các nhân viên khác dùng $6 sẽ tạm chạy trên $7 cho tới lúc đó.'],
   [/^(.+) is out of quota( \(rate limit\))? – resets in (.+?)( \(estimated\))?\. No other AI is available to take over "(.+)"\. .+$/, '$1 đã hết hạn mức$2 – mở lại sau $3$4. Không có AI nào khác để làm tiếp "$5". Hãy kết nối thêm AI hoặc đổi AI cho nhân viên (Thêm → Nhân viên → Đổi AI cho cả đội), rồi bấm Thử lại ở task.'],
   [/^(.+) is out of quota( \(rate limit\))? – resets in (.+?)( \(estimated\))?$/, '$1 đã hết hạn mức$2 – mở lại sau $3$4'],

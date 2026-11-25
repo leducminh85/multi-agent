@@ -117,6 +117,8 @@ export interface Provider {
   config: Record<string, any>;
   enabled: boolean;
   status: 'unknown' | 'connected' | 'error' | 'disabled';
+  /** Out of quota until this time (the office uses another AI meanwhile). */
+  cooldownUntil?: string | null;
   statusMessage: string | null;
   lastCheckedAt: string | null;
   rateLimit: RateLimitInfo | null;

@@ -2,6 +2,15 @@ import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle } from 'lucide-react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+
+/**
+ * Overlays are portaled to <body>: an ancestor with backdrop-filter (every .card) or a transform
+ * (framer-motion) would otherwise become the containing block of `position: fixed` and clip/cover them.
+ */
+function Overlay({ children }: { children: ReactNode }) {
+  return typeof document === 'undefined' ? <>{children}</> : createPortal(children, document.body);
+}
 import { ACTIVITY_COLOR, ACTIVITY_LABEL, STATUS_COLOR } from '../lib/format';
 
 export const cx = clsx;
@@ -139,6 +148,7 @@ export function Modal({ open, onClose, title, children, wide, footer }: { open: 
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
   return (
+    <Overlay>
     <AnimatePresence>
       {open && (
         <motion.div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[8vh] backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
@@ -156,17 +166,19 @@ export function Modal({ open, onClose, title, children, wide, footer }: { open: 
               </button>
             </header>
             <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
-            {footer && <footer className="flex justify-end gap-2 border-t border-white/5 px-5 py-3">{footer}</footer>}
+            {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-white/5 px-5 py-3">{footer}</footer>}
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+    </Overlay>
   );
 }
 
 // ---------------------------------------------------------------- drawer
 export function Drawer({ open, onClose, title, children, width = 'max-w-2xl' }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; width?: string }) {
   return (
+    <Overlay>
     <AnimatePresence>
       {open && (
         <motion.div className="fixed inset-0 z-40 bg-black/50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
@@ -189,6 +201,7 @@ export function Drawer({ open, onClose, title, children, width = 'max-w-2xl' }: 
         </motion.div>
       )}
     </AnimatePresence>
+    </Overlay>
   );
 }
 
