@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ProviderError } from '../src/providers/types.js';
 import { createMockAdapter, isPlanner, makeServices, seedTeam, taskTitle, waitFor, type MockScript } from './helpers.js';
@@ -313,5 +316,28 @@ describe('Orchestrator – out-of-quota failover', () => {
     const m = await s.orchestrator.submitMission({ text: 'research something' }, 'ceo');
     await waitFor(() => ['failed', 'completed'].includes(s.store.getMission(m.id).status), 8000, 'finished');
     expect(s.comms.list({ channel: 'global' }).some((x) => x.kind === 'error' && x.content.includes('No other AI is available'))).toBe(true);
+  });
+});
+
+describe('Orchestrator – answering with files', () => {
+  it('passes files attached to an answer to the agent (text extracted, shown in chat)', async () => {
+    const { s, mock } = setup((req, call) => {
+      if (isPlanner(req)) return JSON.stringify({ tasks: [{ key: 'a', title: 'Design logo', role: 'content' }] });
+      if (call.prompt.includes('Files attached by the manager')) return 'Logo done using the brief';
+      return 'Need input.\n```mao-actions\n{"question_for_manager":"Do you have a brand brief?"}\n```';
+    });
+    const m = await s.orchestrator.submitMission({ text: 'make a logo' }, 'ceo');
+    await waitFor(() => s.store.listTasks({ missionId: m.id }).some((t) => t.status === 'waiting'), 8000, 'waiting');
+    const t = s.store.listTasks({ missionId: m.id })[0];
+    const tmp = path.join(os.tmpdir(), `brief-${Date.now()}.txt`);
+    fs.writeFileSync(tmp, 'Brand colour: teal. Mood: calm.');
+    const f = s.files.ingest({ tempPath: tmp, originalName: 'brief.txt', mime: 'text/plain', size: 31, scope: 'mission', uploadedBy: 'ceo' } as any);
+    await waitFor(() => s.files.get(f.id).extractionStatus !== 'pending', 4000, 'extraction');
+    s.orchestrator.respondToTask(t.id, 'Yes, attached', 'ceo', [f.id]);
+    await waitFor(() => s.store.getMission(m.id).status === 'completed', 8000, 'completed');
+    const last = mock.calls.pop()!;
+    expect(last.prompt).toContain('Brand colour: teal');
+    const answerMsg = s.comms.list({ channel: 'global' }).find((x) => x.fromType === 'user' && x.taskId === t.id)!;
+    expect(answerMsg.attachments.map((a) => a.name)).toEqual(['brief.txt']);
   });
 });

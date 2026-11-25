@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
@@ -128,5 +132,27 @@ describe('REST API', () => {
     await new Promise((r) => setTimeout(r, 100));
     const text = await request(app).get(`/api/files/${res.body[0].id}/text`).set(auth());
     expect(text.body.text).toContain('Bình');
+  });
+
+  it('serves media referenced by agents only from inside the office workspaces', async () => {
+    const project = env.s.projects.ensureDefault();
+    const dir = env.s.projects.workspaceDir(project.id);
+    fs.mkdirSync(path.join(dir, 'out'), { recursive: true });
+    const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+    fs.writeFileSync(path.join(dir, 'out', 'chart.png'), png);
+
+    const rel = await request(app).get('/api/media').query({ path: 'out/chart.png', projectId: project.id }).set(auth());
+    expect(rel.status).toBe(200);
+    expect(rel.headers['content-type']).toContain('image/png');
+    const abs = await request(app).get('/api/media').query({ path: path.join(dir, 'out', 'chart.png') }).set(auth());
+    expect(abs.status).toBe(200);
+    const fileUrl = await request(app).get('/api/media').query({ path: pathToFileURL(path.join(dir, 'out', 'chart.png')).href }).set(auth());
+    expect(fileUrl.status).toBe(200);
+
+    // Escapes and files elsewhere on the machine are refused.
+    expect((await request(app).get('/api/media').query({ path: '../../office.db', projectId: project.id }).set(auth())).status).toBe(403);
+    expect((await request(app).get('/api/media').query({ path: path.join(os.homedir(), 'secret.png') }).set(auth())).status).toBe(403);
+    // Unauthenticated requests are rejected.
+    expect((await request(app).get('/api/media').query({ path: 'out/chart.png', projectId: project.id })).status).toBe(401);
   });
 });

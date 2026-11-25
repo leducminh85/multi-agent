@@ -64,3 +64,76 @@ body {
 .pixelated {
   image-rendering: pixelated;
 }
+
+/* Rendered agent output (Markdown). Compact, readable in chat bubbles and result panels. */
+.md {
+  @apply break-words text-sm leading-relaxed text-slate-200;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p {
+  @apply my-1.5;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  @apply mb-1.5 mt-3 font-semibold text-white;
+}
+.md h1 {
+  @apply text-lg;
+}
+.md h2 {
+  @apply text-base;
+}
+.md h3,
+.md h4 {
+  @apply text-sm;
+}
+.md ul {
+  @apply my-1.5 list-disc space-y-0.5 pl-5;
+}
+.md ol {
+  @apply my-1.5 list-decimal space-y-0.5 pl-5;
+}
+.md li > ul,
+.md li > ol {
+  @apply my-0.5;
+}
+.md li input[type='checkbox'] {
+  @apply mr-1.5 align-middle;
+}
+.md a {
+  @apply text-accent-400 underline decoration-accent-400/40 underline-offset-2 hover:decoration-accent-400;
+}
+.md strong {
+  @apply font-semibold text-white;
+}
+.md blockquote {
+  @apply my-2 border-l-2 border-accent-500/50 pl-3 text-slate-300;
+}
+.md code {
+  @apply rounded bg-ink-800 px-1 py-0.5 font-mono text-[0.85em] text-amber-200;
+}
+.md pre {
+  @apply my-2 overflow-x-auto rounded-lg border border-white/5 bg-ink-950 p-3;
+}
+.md pre code {
+  @apply bg-transparent p-0 text-xs text-slate-200;
+}
+.md hr {
+  @apply my-3 border-white/10;
+}
+.md table {
+  @apply w-full border-collapse text-left text-xs;
+}
+.md th {
+  @apply border-b border-white/10 bg-ink-850 px-2 py-1.5 font-semibold text-slate-200;
+}
+.md td {
+  @apply border-b border-white/5 px-2 py-1.5 align-top;
+}

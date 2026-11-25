@@ -1,6 +1,8 @@
 import { ArrowRight, Bot, MessageSquareText, ShieldQuestion, User } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import CommandCenter from '../components/CommandCenter';
+import Markdown from '../components/Markdown';
+import Attachments from '../components/Attachments';
 import TaskDrawer from '../components/TaskDrawer';
 import { Badge, Card, Empty, PageHeader, Tabs, cx } from '../components/ui';
 import { downloadUrl, post } from '../lib/api';
@@ -56,16 +58,14 @@ export function Bubble({ m, onTask }: { m: Message; onTask: (id: string) => void
           {m.kind !== 'message' && <Badge className={KIND_STYLE[m.kind] ?? KIND_STYLE.message}>{m.kind}</Badge>}
           <span>{timeAgo(m.createdAt)}</span>
         </div>
-        <div translate={m.fromType === 'system' ? undefined : 'no'} className="whitespace-pre-wrap break-words">{m.content}</div>
-        {m.attachments.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {m.attachments.map((a) => (
-              <a key={a.fileId} href={downloadUrl(`/files/${a.fileId}/download`)} target="_blank" rel="noreferrer" className="rounded border border-white/10 px-1.5 py-0.5 text-[11px] text-slate-400 hover:text-white">
-                📎 {a.name}
-              </a>
-            ))}
-          </div>
+        {mine ? (
+          <div translate="no" className="whitespace-pre-wrap break-words">{m.content}</div>
+        ) : m.fromType === 'system' ? (
+          <div className="whitespace-pre-wrap break-words">{m.content}</div>
+        ) : (
+          <Markdown text={m.content} ctx={{ taskId: m.taskId, missionId: m.missionId }} />
         )}
+        <Attachments items={m.attachments} />
         {m.taskId && (
           <button className="mt-1 text-[11px] text-accent-400 hover:underline" onClick={() => onTask(m.taskId!)}>
             open task →
@@ -196,7 +196,7 @@ function AgentChannel({ onTask }: { onTask: (id: string) => void }) {
                 </button>
               )}
             </div>
-            <div translate="no" className="mt-1 whitespace-pre-wrap text-sm text-slate-300">{m.content}</div>
+            <Markdown text={m.content} ctx={{ taskId: m.taskId, missionId: m.missionId }} className="mt-1 text-sm text-slate-300" />
           </li>
         ))}
       </ul>

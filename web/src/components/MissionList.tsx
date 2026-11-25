@@ -89,7 +89,7 @@ function MissionDetail({ id, onOpenTask }: { id: string; onOpenTask: (id: string
       {m.result && (
         <div>
           <div className="label">Final result</div>
-          <Output text={m.result} />
+          <Output text={m.result} ctx={{ missionId: m.id, projectId: m.projectId }} />
         </div>
       )}
       <div className="flex gap-2">

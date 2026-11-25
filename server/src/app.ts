@@ -22,8 +22,10 @@ export function createApp(s: Services): express.Express {
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
-          'img-src': ["'self'", 'data:', 'blob:'],
-          'media-src': ["'self'", 'blob:'],
+          // Agents may embed images/videos from the web in their answers (shown inline in chat and results).
+          'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+          'media-src': ["'self'", 'blob:', 'https:'],
+          'frame-src': ['https://www.youtube-nocookie.com', 'https://player.vimeo.com'],
           'connect-src': ["'self'", 'ws:', 'wss:'],
           'style-src': ["'self'", "'unsafe-inline'"],
         },

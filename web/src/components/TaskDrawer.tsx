@@ -1,5 +1,7 @@
-import { BookmarkPlus, CheckCircle2, Circle, CircleDot, Info, RotateCcw, Send, UserCog, XCircle, XOctagon } from 'lucide-react';
+import { BookmarkPlus, CheckCircle2, Circle, CircleDot, Info, RotateCcw, UserCog, XCircle, XOctagon } from 'lucide-react';
 import { useState } from 'react';
+import AnswerBox from './AnswerBox';
+import Markdown from './Markdown';
 import { post } from '../lib/api';
 import { useAction, useAgents, useTask } from '../lib/hooks';
 import { fmtDate, fmtNum, formatDuration, timeAgo } from '../lib/format';
@@ -19,14 +21,12 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: { taskId: st
   const agents = useAgents();
   const stream = useTaskStream(taskId);
   const confirm = useConfirm();
-  const [answer, setAnswer] = useState('');
   const [reassignTo, setReassignTo] = useState('');
   const t = q.data;
 
   const cancel = useAction(() => post(`/tasks/${taskId}/cancel`), { success: 'Task cancelled' });
   const retry = useAction(() => post(`/tasks/${taskId}/retry`), { success: 'Task re-queued' });
   const reassign = useAction((agentId: string | null) => post(`/tasks/${taskId}/reassign`, { agentId }), { success: 'Task reassigned' });
-  const respond = useAction(() => post(`/tasks/${taskId}/respond`, { answer }), { success: 'Answer sent – task resumed' });
   const saveKnowledge = useAction((scope: string) => post(`/tasks/${taskId}/save-knowledge`, { scope }), { success: 'Saved to knowledge base' });
   const decide = useAction(({ id, decision }: { id: string; decision: string }) => post(`/approvals/${id}/decide`, { decision }), { success: 'Decision recorded' });
 
@@ -112,16 +112,9 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: { taskId: st
                 .filter((m) => m.kind === 'question')
                 .slice(-1)
                 .map((m) => (
-                  <div key={m.id} className="mb-2 text-sm text-slate-300">
-                    {m.content}
-                  </div>
+                  <Markdown key={m.id} text={m.content.replace(/^Question about ".*?":\s*/s, '')} ctx={{ taskId: t.id, projectId: t.projectId }} className="mb-2 text-slate-200" />
                 ))}
-              <div className="flex gap-2">
-                <input className="input" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Your answer…" onKeyDown={(e) => e.key === 'Enter' && answer && respond.mutate()} />
-                <button className="btn-primary" disabled={!answer} onClick={() => respond.mutate()}>
-                  <Send className="h-4 w-4" />
-                </button>
-              </div>
+              <AnswerBox taskId={t.id} projectId={t.projectId} />
             </div>
           )}
 
@@ -203,13 +196,13 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: { taskId: st
               <h4 className="label flex items-center gap-2">
                 Live output <Badge className="border-sky-500/20 text-sky-300">streaming</Badge>
               </h4>
-              {stream ? <Output text={stream} /> : <div className="text-sm text-slate-500">{t.providerName ? 'Waiting for the provider to stream output (CLI agents report when they finish)…' : '…'}</div>}
+              {stream ? <Output text={stream} ctx={{ taskId: t.id, projectId: t.projectId }} /> : <div className="text-sm text-slate-500">{t.providerName ? 'Waiting for the provider to stream output (CLI agents report when they finish)…' : '…'}</div>}
             </section>
           )}
 
           <section>
             <h4 className="label">Output</h4>
-            <Output text={t.output} />
+            <Output text={t.output} ctx={{ taskId: t.id, projectId: t.projectId }} />
           </section>
 
           {t.errorLog && (
@@ -228,7 +221,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: { taskId: st
                     <div className="text-xs text-slate-500">
                       {m.fromName ?? m.fromType} → {m.toName ?? m.toType ?? 'all'} · {m.kind} · {timeAgo(m.createdAt)}
                     </div>
-                    <div translate="no" className="whitespace-pre-wrap text-slate-300">{m.content}</div>
+                    <Markdown text={m.content} ctx={{ taskId: t.id, projectId: t.projectId }} className="text-slate-300" />
                   </li>
                 ))}
               </ul>

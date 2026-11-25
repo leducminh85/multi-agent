@@ -17,6 +17,8 @@ export interface ExtraContext {
   label: string;
   content: string;
   at: string;
+  /** Files attached by the manager (answers) – given to the agent like mission attachments. */
+  fileIds?: string[];
 }
 
 export interface TaskStep {

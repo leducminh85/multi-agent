@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import AgentDrawer from '../components/AgentDrawer';
 import CommandCenter from '../components/CommandCenter';
+import AnswerBox from '../components/AnswerBox';
+import Markdown from '../components/Markdown';
 import MissionList from '../components/MissionList';
 import QuickAgentModal from '../components/QuickAgentModal';
 import QuotaRecovery from '../components/QuotaRecovery';
@@ -277,7 +279,7 @@ function TeamChat({ onTask }: { onTask: (id: string) => void }) {
               </button>
             )}
           </div>
-          <div translate="no" className="mt-0.5 line-clamp-4 whitespace-pre-wrap text-xs text-slate-300">{m.content}</div>
+          <Markdown text={m.content} ctx={{ taskId: m.taskId, missionId: m.missionId }} className="mt-0.5 max-h-60 overflow-y-auto text-xs text-slate-300" />
         </div>
       ))}
     </div>
@@ -318,43 +320,25 @@ function NeedsYou({ approvals, questions, onTask }: { approvals: any[]; question
 /** Shows the agent's actual question and lets the manager answer in place. */
 function QuestionCard({ task: t, onTask }: { task: Task; onTask: (id: string) => void }) {
   const msgs = useMessages('global', '&limit=100');
-  const [answer, setAnswer] = useState('');
-  const send = useAction((text: string) => post(`/tasks/${t.id}/respond`, { answer: text }), {
-    success: 'Answer sent – task resumed',
-    invalidate: [['tasks'], ['messages'], ['overview']],
-  });
   const q = [...(msgs.data ?? [])].reverse().find((m) => m.kind === 'question' && m.taskId === t.id);
   // Server format: `Question about "<task>": <question>` – show just the question.
   const question = q ? q.content.replace(/^Question about ".*?":\s*/s, '') : t.title;
   return (
     <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-2.5 text-sm">
       <div className="text-xs font-medium text-orange-300">{`${t.agentName ?? 'An employee'} has a question`}</div>
-      <div translate="no" className="mt-1 whitespace-pre-wrap text-slate-100">
-        {question}
-      </div>
+      <Markdown text={question} ctx={{ taskId: t.id, projectId: t.projectId }} className="mt-1 text-slate-100" />
       <button className="mt-1 text-[11px] text-slate-500 hover:text-slate-300" onClick={() => onTask(t.id)}>
         {t.title} →
       </button>
-      <div className="mt-2 flex gap-2">
-        <textarea
-          className="input h-16 resize-none text-sm"
-          placeholder="Your answer…"
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && answer.trim()) send.mutate(answer.trim());
-          }}
-        />
-        <button className="btn-primary self-end" disabled={!answer.trim() || send.isPending} onClick={() => send.mutate(answer.trim())}>
-          Send
-        </button>
+      <div className="mt-2">
+        <AnswerBox taskId={t.id} projectId={t.projectId} compact />
       </div>
     </div>
   );
 }
 
 // ------------------------------------------------------------------ tasks
-const ACTIVE =['pending', 'planning', 'assigned', 'running', 'reviewing', 'waiting'];
+const ACTIVE = ['pending', 'planning', 'assigned', 'running', 'reviewing', 'waiting'];
 const STATUS_LABEL: Record<string, [string, string]> = {
   pending: ['Queued', 'bg-slate-500'],
   planning: ['Planning', 'bg-sky-400'],

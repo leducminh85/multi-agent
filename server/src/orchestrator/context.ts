@@ -50,6 +50,7 @@ export class ContextBuilder {
     if (agent.specialties.trim()) parts.push(`## Your specialties\n${agent.specialties.trim()}`);
     parts.push(
       'Answer in the same language as the manager\'s request unless the task says otherwise. Be honest: if information is missing, say what is missing instead of inventing it.',
+      'Format your answer in Markdown (headings, lists, tables). The manager sees images and videos inline: to show one, embed it with ![short description](url) using a real web URL or the path of a file you saved in the workspace (relative path preferred). Do not invent URLs.',
     );
     if (opts.protocol) {
       const others = this.agents.list().filter((a) => a.id !== agent.id && a.enabled);
@@ -66,18 +67,23 @@ export class ContextBuilder {
   }
 
   attachmentsBlock(agent: Agent, mission: Mission | null, budget: number): { text: string; images: InputImage[]; count: number } {
-    if (!mission?.attachments.length || agent.permissions.fileAccess === 'none') return { text: '', images: [], count: 0 };
+    return this.filesBlock(agent, mission?.attachments ?? [], mission?.projectId ?? null, budget);
+  }
+
+  /** Text (extracted) + images of the given stored files, filtered by the agent's file permissions. */
+  filesBlock(agent: Agent, fileIds: string[], projectId: string | null, budget: number): { text: string; images: InputImage[]; count: number } {
+    if (!fileIds.length || agent.permissions.fileAccess === 'none') return { text: '', images: [], count: 0 };
     const parts: string[] = [];
     const images: InputImage[] = [];
     let remaining = budget;
-    for (const id of mission.attachments) {
+    for (const id of fileIds) {
       let f;
       try {
         f = this.files.get(id);
       } catch {
         continue;
       }
-      if (agent.permissions.fileAccess === 'project' && f.projectId && f.projectId !== mission.projectId) continue;
+      if (agent.permissions.fileAccess === 'project' && f.projectId && projectId && f.projectId !== projectId) continue;
       const text = this.files.text(id);
       const header = `### Attachment: ${f.name} (${f.kind}, ${f.size} bytes) – ${f.extractionNote ?? f.extractionStatus}`;
       if (text && remaining > 500) {
@@ -132,6 +138,12 @@ export class ContextBuilder {
 
     const att = this.attachmentsBlock(agent, mission, 120_000);
     if (att.text) sections.push(`## Attached files\n${att.text}`);
+    // Files the manager attached to answers / notes for this task.
+    const answerFiles = task.extraContext.flatMap((x) => x.fileIds ?? []);
+    const extraAtt = this.filesBlock(agent, answerFiles, task.projectId, 120_000);
+    if (extraAtt.text) sections.push(`## Files attached by the manager\n${extraAtt.text}`);
+    att.images.push(...extraAtt.images);
+    att.count += extraAtt.count;
 
     if (task.kind === 'synthesis') {
       sections.push(

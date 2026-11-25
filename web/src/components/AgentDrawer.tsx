@@ -93,7 +93,7 @@ export default function AgentDrawer({ agentId, onClose, onOpenTask }: { agentId:
                     </li>
                   ))}
                 </ol>
-                {stream && <Output text={stream} />}
+                {stream && <Output text={stream} ctx={{ taskId: a.currentTask?.id, projectId: a.currentTask?.projectId }} />}
               </div>
             ) : (
               <div className="rounded-lg bg-ink-850 px-3 py-6 text-center text-sm text-slate-400">

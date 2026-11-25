@@ -112,8 +112,11 @@ export function workRoutes(s: Services): Router {
   r.post(
     '/tasks/:id/respond',
     ah((req, res) => {
-      const { answer } = z.object({ answer: z.string().min(1).max(50_000) }).parse(req.body);
-      res.json(s.orchestrator.respondToTask(req.params.id, answer, actor(req)));
+      const { answer, fileIds } = z
+        .object({ answer: z.string().max(50_000).default(''), fileIds: z.array(z.string()).max(20).default([]) })
+        .refine((b) => b.answer.trim() || b.fileIds.length, 'Write an answer or attach a file')
+        .parse(req.body);
+      res.json(s.orchestrator.respondToTask(req.params.id, answer.trim() || '(see attached files)', actor(req), fileIds));
     }),
   );
   r.post(

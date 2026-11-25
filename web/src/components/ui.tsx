@@ -12,6 +12,7 @@ function Overlay({ children }: { children: ReactNode }) {
   return typeof document === 'undefined' ? <>{children}</> : createPortal(children, document.body);
 }
 import { ACTIVITY_COLOR, ACTIVITY_LABEL, STATUS_COLOR } from '../lib/format';
+import Markdown, { type MediaContext } from './Markdown';
 
 export const cx = clsx;
 
@@ -278,9 +279,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 // ---------------------------------------------------------------- misc
-export function Output({ text, className }: { text: string | null | undefined; className?: string }) {
+export function Output({ text, className, ctx, raw: forceRaw }: { text: string | null | undefined; className?: string; ctx?: MediaContext; raw?: boolean }) {
+  const [raw, setRaw] = useState(false);
   if (!text) return <div className="text-sm italic text-slate-500">No output yet.</div>;
-  return <pre className={cx('prose-output max-h-[480px] overflow-auto rounded-lg border border-white/5 bg-ink-950/60 p-3', className)}>{text}</pre>;
+  const box = cx('max-h-[560px] overflow-auto rounded-lg border border-white/5 bg-ink-950/60 p-3', className);
+  if (forceRaw) return <pre className={cx('prose-output', box)}>{text}</pre>;
+  return (
+    <div className="relative">
+      <button className="absolute right-2 top-2 z-10 rounded bg-ink-800/80 px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-white" onClick={() => setRaw((v) => !v)}>
+        {raw ? 'Formatted' : 'Raw text'}
+      </button>
+      {raw ? <pre className={cx('prose-output', box)}>{text}</pre> : <Markdown text={text} ctx={ctx} className={box} />}
+    </div>
+  );
 }
 
 export function Kbd({ children }: { children: ReactNode }) {

@@ -65,6 +65,10 @@ Nút **EN / VI** ở góc trên đổi ngôn ngữ giao diện (cả trang đăn
 
 **Dashboard một màn hình** gồm 4 ô cập nhật realtime: **Virtual office** (click vào nhân vật để xem/giao việc), **Communication** (chat với trợ lý, tin nhắn giữa các agent, mục *Needs you* để phê duyệt/trả lời), **Tasks** (yêu cầu, đang làm, xong, lỗi) và **Usage** (token, chi phí, quota từng AI). Các trang chi tiết (nhân viên, Kanban/Gantt, usage đầy đủ, dự án, file, cài đặt) nằm trong menu **More**.
 
+Câu trả lời của AI hiển thị dạng **Markdown** (tiêu đề, danh sách, bảng, code). Ảnh/video được **hiện trực tiếp**: link ảnh/video trên web, video YouTube/Vimeo, và cả đường dẫn file mà agent lưu trong workspace (ví dụ `D:\...\chart.png`, `out/clip.mp4`) – chỉ file nằm trong workspace/kho file của văn phòng mới được mở. Nút *Văn bản gốc* để xem nội dung thô.
+
+Khi nhân viên hỏi bạn (ô **Cần bạn**), có thể trả lời kèm **ảnh hoặc tệp**: bấm 📎, kéo thả, hoặc **Ctrl+V dán ảnh chụp màn hình**. Tệp được giao cho nhân viên cùng câu trả lời (ảnh được AI nhìn thấy, tài liệu được trích nội dung).
+
 Thêm nhân viên: nút **Hire** – chọn công việc, đặt tên, xong. Cấu hình chi tiết (model, quyền, giới hạn) nằm trong *Advanced settings…*.
 
 ### Docker

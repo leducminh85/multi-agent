@@ -1002,12 +1002,34 @@ ${rt.autoSynthesis ? '- Do NOT add a final "consolidate/summarise results" task 
     return this.d.store.getTask(taskId);
   }
 
-  respondToTask(taskId: string, answer: string, actor: string): Task {
+  respondToTask(taskId: string, answer: string, actor: string, fileIds: string[] = []): Task {
     const t = this.d.store.getTask(taskId);
     if (t.status !== 'waiting' || !(t.waitingReason ?? '').includes(WAIT_MANAGER)) throw new HttpError(409, 'Task is not waiting for a manager answer');
-    this.d.comms.post({ channel: 'global', kind: 'message', fromType: 'user', fromName: actor, toType: 'agent', toId: t.agentId, toName: t.agentName, missionId: t.missionId, taskId, content: answer });
+    const files = fileIds.map((id) => this.d.files.get(id));
+    this.d.comms.post({
+      channel: 'global',
+      kind: 'message',
+      fromType: 'user',
+      fromName: actor,
+      toType: 'agent',
+      toId: t.agentId,
+      toName: t.agentName,
+      missionId: t.missionId,
+      taskId,
+      content: answer,
+      attachments: files.map((f) => ({ fileId: f.id, name: f.name })),
+    });
     this.d.audit.log(actor, 'task.respond', { type: 'task', id: taskId });
-    const resumed = this.resolveWait(taskId, (w) => w !== WAIT_MANAGER, [...t.extraContext, { kind: 'manager_answer', label: "Manager's answer to your question", content: answer, at: nowIso() }]);
+    const resumed = this.resolveWait(taskId, (w) => w !== WAIT_MANAGER, [
+      ...t.extraContext,
+      {
+        kind: 'manager_answer',
+        label: "Manager's answer to your question",
+        content: files.length ? `${answer}\n\n(Attached: ${files.map((f) => f.name).join(', ')} – see "Files attached by the manager")` : answer,
+        at: nowIso(),
+        fileIds: files.map((f) => f.id),
+      },
+    ]);
     // Tell the manager the answer landed and work goes on – otherwise CLI agents (no streaming) look frozen for minutes.
     const agent = t.agentId ? this.d.agents.find(t.agentId) : null;
     // Name the AI that will really do the work (the agent's own one may be out of quota → failover).
