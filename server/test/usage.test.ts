@@ -17,6 +17,14 @@ function env() {
 }
 
 describe('usage accounting', () => {
+  it('records tokens but no cost for flat-rate subscription runs', () => {
+    const { s, p } = env();
+    s.usage.record({ providerId: p.id, providerType: 'claude-code-cli', model: 'claude-opus-5-5', usage: { inputTokens: 1000, outputTokens: 1000 }, subscription: true, source: 'cli_report' });
+    const row = s.db.get<any>('SELECT input_tokens, output_tokens, cost_usd, cost_source FROM usage_records');
+    expect(row).toMatchObject({ input_tokens: 1000, output_tokens: 1000, cost_source: 'unknown' });
+    expect(row.cost_usd ?? 0).toBe(0);
+  });
+
   it('estimates cost only when a price is known and labels the source', () => {
     const { s, p } = env();
     s.usage.record({ providerId: p.id, providerType: 'anthropic-api', model: 'claude-opus-5-5', usage: { inputTokens: 1_000_000, outputTokens: 100_000 }, source: 'api_response' });

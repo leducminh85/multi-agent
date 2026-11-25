@@ -15,7 +15,7 @@ Mỗi provider là một adapter trong `server/src/providers`. Tất cả cùng 
 - **Đăng nhập**: `claude auth status` cho biết trạng thái thật; nút *Sign in to Claude* mở `claude auth login` trong cửa sổ console riêng (đăng nhập trên trình duyệt, office không thấy thông tin đăng nhập). Lỗi "Not logged in" được báo rõ và không retry vô ích.
 - Biến môi trường của phiên Claude Code lồng nhau (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, …) được loại khỏi tiến trình agent.
 - Quyền agent → `--allowedTools` / `--disallowedTools` (Read/Glob/Grep luôn có; Edit/Write khi cho phép ghi; Bash khi cho phép chạy lệnh; WebFetch/WebSearch khi cho phép mạng).
-- Usage: token + `total_cost_usd` do CLI báo (với đăng nhập gói đăng ký, đây là giá trị quy đổi API, không bị tính tiền).
+- Usage: token do CLI báo. Chi phí: đăng nhập bằng API key → ghi `total_cost_usd` là chi phí thật; đăng nhập gói Pro/Max (claude.ai) → **không** ghi chi phí (giá trị đó chỉ là quy đổi API, không bị tính tiền), chỉ lưu tham khảo `apiEquivalentUsd`. Đã chạy thật end-to-end với gói claude.ai (`claude-opus-5-5`).
 - **Giới hạn 5 giờ / tuần của gói Pro/Max không có API chính thức** → nhập thủ công.
 
 ## OpenAI (API) – `openai-api`

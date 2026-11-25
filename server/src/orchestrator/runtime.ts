@@ -77,7 +77,7 @@ export class AgentRuntime {
     }
   }
 
-  private account(agent: Agent, providerId: string, providerType: string, model: string | undefined, r: Pick<RunResult, 'usage' | 'costUsd' | 'costSource' | 'durationMs' | 'text'>, opts: InvokeOptions) {
+  private account(agent: Agent, providerId: string, providerType: string, model: string | undefined, r: Pick<RunResult, 'usage' | 'costUsd' | 'costSource' | 'durationMs' | 'text' | 'subscription'>, opts: InvokeOptions) {
     this.usage.record({
       providerId,
       providerType,
@@ -88,6 +88,7 @@ export class AgentRuntime {
       usage: r.usage,
       costUsd: r.costUsd,
       costReported: r.costSource === 'reported',
+      subscription: r.subscription,
       source: this.providers.registry.get(providerType).descriptor.integration === 'cli' ? 'cli_report' : 'api_response',
       durationMs: r.durationMs,
     });

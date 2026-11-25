@@ -101,6 +101,8 @@ export interface RunResult {
   costUsd?: number;
   /** 'reported' = the provider returned the cost; otherwise we estimate from pricing table. */
   costSource?: 'reported';
+  /** Run on a flat-rate subscription login: no per-request spend, so no cost is recorded or estimated. */
+  subscription?: boolean;
   rateLimit?: RateLimitInfo;
   durationMs: number;
   meta?: Record<string, unknown>;

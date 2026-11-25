@@ -20,6 +20,8 @@ export interface UsageRecordInput {
   usage?: UsageInfo;
   costUsd?: number;
   costReported?: boolean;
+  /** Flat-rate subscription run (e.g. Claude Pro/Max via Claude Code): tokens are recorded, cost is not estimated. */
+  subscription?: boolean;
   source: UsageSource;
   durationMs?: number;
 }
@@ -89,7 +91,7 @@ export class UsageService {
     if (!u && input.costUsd === undefined) return;
     let cost = input.costUsd;
     let costSource: CostSource = input.costReported && cost !== undefined ? 'reported' : 'unknown';
-    if (costSource !== 'reported' && u) {
+    if (costSource !== 'reported' && u && !input.subscription) {
       const price = findPrice(this.settings.get('pricing'), input.model);
       if (price) {
         const cacheRead = u.cacheReadTokens ?? 0;

@@ -126,7 +126,11 @@ export function resolveClaudeCommand(configured?: string): string {
 
 export function cleanEnvForClaude(): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = { ...process.env };
+  // A host Claude Code session also points ANTHROPIC_BASE_URL at its own local proxy, which only works with
+  // that session's credentials. Drop it only in that case; a user-configured gateway is kept.
+  const nested = !!(env.CLAUDECODE || env.CLAUDE_CODE_SESSION_ID || env.CLAUDE_CODE_MESSAGING_SOCKET);
   for (const k of NESTED_SESSION_ENV) delete env[k];
+  if (nested) delete env.ANTHROPIC_BASE_URL;
   return env;
 }
 

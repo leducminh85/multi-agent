@@ -39,6 +39,15 @@ function imagesToFiles(req: RunRequest): string {
 }
 
 // ---------------- Claude Code CLI ----------------
+const authCache = new Map<string, { at: number; value: Awaited<ReturnType<typeof claudeAuthStatus>> }>();
+async function cachedAuth(command: string) {
+  const hit = authCache.get(command);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.value;
+  const value = await claudeAuthStatus(command);
+  authCache.set(command, { at: Date.now(), value });
+  return value;
+}
+
 async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResult> {
   const started = Date.now();
   const command = resolveClaudeCommand(ctx.config.command as string | undefined);
@@ -88,14 +97,20 @@ async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResu
     throw err;
   }
   const modelUsed = json.modelUsage ? Object.keys(json.modelUsage)[0] : model;
+  const reported = typeof json.total_cost_usd === 'number' ? json.total_cost_usd : undefined;
+  // With a Claude Pro/Max login (claude.ai) total_cost_usd is only the API-equivalent value – nothing is billed –
+  // so it must not be counted as spend. It is kept in meta for reference. API-key logins are real spend.
+  const auth = await cachedAuth(command);
+  const subscription = auth?.authMethod === 'claude.ai';
   return {
     text: String(json.result ?? ''),
     model: modelUsed,
     usage,
-    costUsd: typeof json.total_cost_usd === 'number' ? json.total_cost_usd : undefined,
-    costSource: typeof json.total_cost_usd === 'number' ? 'reported' : undefined,
+    costUsd: subscription ? undefined : reported,
+    costSource: !subscription && reported !== undefined ? 'reported' : undefined,
+    subscription,
     durationMs: Date.now() - started,
-    meta: { sessionId: json.session_id, numTurns: json.num_turns },
+    meta: { sessionId: json.session_id, numTurns: json.num_turns, authMethod: auth?.authMethod ?? null, apiEquivalentUsd: reported },
   };
 }
 

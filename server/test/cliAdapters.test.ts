@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Capture every CLI invocation instead of spawning real processes.
 const calls: { command: string; args: string[]; stdin?: string; env?: Record<string, string | undefined> }[] = [];
 let nextStdout = '';
+let authStdout = JSON.stringify({ loggedIn: true, authMethod: 'apiKey' });
 vi.mock('../src/providers/cli.js', async (orig) => {
   const real: any = await orig();
   return {
     ...real,
     runCli: vi.fn(async (o: any) => {
+      if (o.args[0] === 'auth') return { stdout: authStdout, stderr: '', code: 0 };
       calls.push({ command: o.command, args: o.args, stdin: o.stdin, env: o.replaceEnv });
       return { stdout: nextStdout, stderr: '', code: 0 };
     }),
@@ -76,6 +78,8 @@ describe('Claude Code CLI adapter', () => {
   it('runs read-only with tool restrictions and without nested-session variables', async () => {
     process.env.CLAUDECODE = '1';
     process.env.CLAUDE_CODE_ENTRYPOINT = 'sdk';
+    const prevBase = process.env.ANTHROPIC_BASE_URL;
+    process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:9/host-session-proxy';
     nextStdout = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'answer', total_cost_usd: 0.01, usage: { input_tokens: 3, output_tokens: 4 } });
     const r = await claudeCliAdapter.run({ providerId: 'p', config: { command: 'claude' }, credentials: {} }, req());
     expect(r.text).toBe('answer');
@@ -84,8 +88,25 @@ describe('Claude Code CLI adapter', () => {
     expect(c.args).toContain('-p');
     expect(c.args[c.args.indexOf('--disallowedTools') + 1]).toContain('Write');
     for (const k of NESTED_SESSION_ENV) expect(c.env?.[k]).toBeUndefined();
+    expect(c.env?.ANTHROPIC_BASE_URL).toBeUndefined();
+    if (prevBase === undefined) delete process.env.ANTHROPIC_BASE_URL;
+    else process.env.ANTHROPIC_BASE_URL = prevBase;
     delete process.env.CLAUDECODE;
     delete process.env.CLAUDE_CODE_ENTRYPOINT;
+  });
+});
+
+describe('Claude cost accounting', () => {
+  it('does not treat the API-equivalent value of a subscription login as spend', async () => {
+    const { claudeCliAdapter: fresh } = await import('../src/providers/cliAdapters.js');
+    authStdout = JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' });
+    nextStdout = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'x', total_cost_usd: 0.11, usage: { input_tokens: 2, output_tokens: 9 } });
+    // A distinct command path avoids the 10-minute auth cache populated by earlier tests.
+    const r = await fresh.run({ providerId: 'p', config: { command: process.execPath }, credentials: {} }, req());
+    expect(r.subscription).toBe(true);
+    expect(r.costUsd).toBeUndefined();
+    expect(r.meta?.apiEquivalentUsd).toBe(0.11);
+    authStdout = JSON.stringify({ loggedIn: true, authMethod: 'apiKey' });
   });
 });
 
