@@ -11,6 +11,9 @@ Mỗi provider là một adapter trong `server/src/providers`. Tất cả cùng 
 
 ## Claude Code (CLI) – `claude-code-cli`
 - `claude -p --output-format json` với prompt qua stdin, chạy trong workspace của project.
+- **Tự tìm CLI**: để lệnh là `claude` thì hệ thống tìm bản trên PATH, `~/.local/bin`, npm global, rồi bản đi kèm app Claude desktop (`Claude-Data/.../claude-code/<version>`) và extension VS Code/Cursor/Windsurf – chọn bản mới nhất, tự chuyển khi app cập nhật.
+- **Đăng nhập**: `claude auth status` cho biết trạng thái thật; nút *Sign in to Claude* mở `claude auth login` trong cửa sổ console riêng (đăng nhập trên trình duyệt, office không thấy thông tin đăng nhập). Lỗi "Not logged in" được báo rõ và không retry vô ích.
+- Biến môi trường của phiên Claude Code lồng nhau (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, …) được loại khỏi tiến trình agent.
 - Quyền agent → `--allowedTools` / `--disallowedTools` (Read/Glob/Grep luôn có; Edit/Write khi cho phép ghi; Bash khi cho phép chạy lệnh; WebFetch/WebSearch khi cho phép mạng).
 - Usage: token + `total_cost_usd` do CLI báo (với đăng nhập gói đăng ký, đây là giá trị quy đổi API, không bị tính tiền).
 - **Giới hạn 5 giờ / tuần của gói Pro/Max không có API chính thức** → nhập thủ công.
@@ -30,7 +33,7 @@ Mỗi provider là một adapter trong `server/src/providers`. Tất cả cùng 
 - Không có billing API cho API key → chi phí ước tính.
 
 ## Google Antigravity (CLI) – `antigravity-cli`
-- `agy --output-format json --mode plan|accept-edits [--sandbox] --print-timeout Ns --print=<prompt>`; đã kiểm chứng định dạng JSON thật: `{status, response, usage{input_tokens, output_tokens, thinking_tokens, cache_read_tokens}}`.
+- `agy --output-format json [--mode accept-edits] [--sandbox] --disable-slash-commands --print-timeout Ns --print=<prompt>`. **Không dùng `--mode plan`**: ở chế độ này agy chỉ viết kế hoạch và chờ duyệt thay vì làm việc (đã gây lỗi "Empty response"); agent chỉ-đọc chạy chế độ mặc định + `--sandbox`; đã kiểm chứng định dạng JSON thật: `{status, response, usage{input_tokens, output_tokens, thinking_tokens, cache_read_tokens}}`.
 - Prompt dài (> 20k ký tự, do giới hạn dòng lệnh Windows) được ghi vào file trong workspace và agent được yêu cầu đọc file đó.
 - **IDE desktop Antigravity không có API**; quota/credit của gói không có API → nhập thủ công.
 

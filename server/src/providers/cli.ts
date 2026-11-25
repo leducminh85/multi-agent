@@ -9,6 +9,8 @@ export interface CliRunOptions {
   signal: AbortSignal;
   timeoutMs: number;
   env?: Record<string, string>;
+  /** Full environment to use instead of process.env (e.g. with variables removed). */
+  replaceEnv?: Record<string, string | undefined>;
   onStdoutLine?: (line: string) => void;
 }
 
@@ -26,7 +28,7 @@ export function runCli(opts: CliRunOptions): Promise<CliRunResult> {
     try {
       child = spawn(opts.command, opts.args, {
         cwd: opts.cwd,
-        env: { ...process.env, ...opts.env },
+        env: { ...(opts.replaceEnv ?? process.env), ...opts.env } as NodeJS.ProcessEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       });

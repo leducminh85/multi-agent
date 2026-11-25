@@ -276,7 +276,7 @@ function TeamChat({ onTask }: { onTask: (id: string) => void }) {
               </button>
             )}
           </div>
-          <div className="mt-0.5 line-clamp-4 whitespace-pre-wrap text-xs text-slate-300">{m.content}</div>
+          <div translate="no" className="mt-0.5 line-clamp-4 whitespace-pre-wrap text-xs text-slate-300">{m.content}</div>
         </div>
       ))}
     </div>

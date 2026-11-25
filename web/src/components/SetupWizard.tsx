@@ -1,13 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Cpu, KeyRound, Laptop, Sparkles, XCircle } from 'lucide-react';
-import { useState } from 'react';
+import { CheckCircle2, Cpu, KeyRound, Laptop, LogIn, RefreshCw, Sparkles, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { get, post } from '../lib/api';
 import { useAgents, useProviders, useProviderTypes } from '../lib/hooks';
 import type { Provider } from '../lib/types';
 import { cx, Modal, Spinner, useToast } from './ui';
 
 interface Detected {
-  cli: { type: string; command: string; label: string; found: boolean; version: string | null }[];
+  cli: { type: string; command: string; label: string; found: boolean; version: string | null; loggedIn: boolean | null; authMethod: string | null }[];
   ollama: { found: boolean; models: string[] };
 }
 
@@ -36,7 +36,27 @@ export default function SetupWizard({ open, onClose }: { open: boolean; onClose:
   const providers = useProviders();
   const agents = useAgents();
   const types = useProviderTypes();
-  const detect = useQuery({ queryKey: ['provider-detect'], queryFn: () => get<Detected>('/providers/detect'), enabled: open, staleTime: 60_000 });
+  const [waitingLogin, setWaitingLogin] = useState<null | { opened: boolean; manualCommand: string }>(null);
+  const detect = useQuery({
+    queryKey: ['provider-detect'],
+    queryFn: () => get<Detected>('/providers/detect'),
+    enabled: open,
+    staleTime: 60_000,
+    // While the user signs in to Claude in the browser, re-check every few seconds.
+    refetchInterval: waitingLogin ? 4000 : false,
+  });
+  const claude = detect.data?.cli.find((c) => c.type === 'claude-code-cli');
+  useEffect(() => {
+    if (waitingLogin && claude?.loggedIn) setWaitingLogin(null);
+  }, [waitingLogin, claude?.loggedIn]);
+  const signIn = async () => {
+    setError(null);
+    try {
+      setWaitingLogin(await post<{ opened: boolean; manualCommand: string }>('/providers/claude-login'));
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
   const [keyType, setKeyType] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [ollamaModel, setOllamaModel] = useState('');
@@ -64,7 +84,7 @@ export default function SetupWizard({ open, onClose }: { open: boolean; onClose:
     setError(null);
     try {
       let body: any;
-      if (c.kind === 'cli') body = { type: c.type, name: c.label, config: { ...defaults(c.type), command: c.command } };
+      if (c.kind === 'cli') body = { type: c.type, name: c.label, config: { ...defaults(c.type), command: c.type === 'claude-code-cli' ? 'claude' : c.command } };
       else if (c.kind === 'ollama') body = { type: 'ollama', name: 'Ollama (on this computer)', config: { ...defaults('ollama'), defaultModel: c.model } };
       else body = { type: c.type, name: c.label, config: { ...defaults(c.type), defaultModel: c.model }, credentials: { apiKey: c.key.trim() } };
       const p = await post<Provider>('/providers', body);
@@ -109,7 +129,7 @@ export default function SetupWizard({ open, onClose }: { open: boolean; onClose:
           <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-400" />
           <div className="mt-3 text-lg font-semibold text-white">Done!</div>
           <p className="mt-1 text-sm text-slate-400">{done}</p>
-          <p className="mt-3 text-sm text-slate-300">Type a request in the <b>Assign work</b> box at the top of the dashboard and the team gets started.</p>
+          <p className="mt-3 text-sm text-slate-300">Type a request in the box at the top of the dashboard and the team gets started.</p>
           <button className="btn-primary mt-5" onClick={onClose}>
             Open the dashboard
           </button>
@@ -137,7 +157,58 @@ export default function SetupWizard({ open, onClose }: { open: boolean; onClose:
               </div>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
-                {(detect.data?.cli ?? []).map((c) => (
+                {claude && (
+                  <div className={cx('rounded-xl border p-3 sm:col-span-2', claude.found ? 'border-accent-500/40 bg-ink-850' : 'border-white/10 bg-ink-850/60')}>
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 text-lg">✳️</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-white">Claude (Claude Code)</div>
+                        {claude.found && claude.loggedIn !== false && <div className="text-xs text-emerald-300">Uses your Claude subscription. Signed in and ready.</div>}
+                        {claude.found && claude.loggedIn === false && <div className="text-xs text-amber-300">Found on this computer, but not signed in yet.</div>}
+                        {!claude.found && (
+                          <div className="text-xs text-slate-400">
+                            <div>Not installed. Install the official Claude Code (one command in PowerShell), then press Check again:</div>
+                            <code translate="no" className="mt-1 block select-all rounded bg-ink-950 px-2 py-1 text-[11px] text-slate-200">
+                              irm https://claude.ai/install.ps1 | iex
+                            </code>
+                          </div>
+                        )}
+                        {waitingLogin && (
+                          <div className="mt-2 rounded-md border border-sky-500/30 bg-sky-500/10 p-2 text-xs text-sky-200">
+                            {waitingLogin.opened ? (
+                              <span className="flex items-center gap-2">
+                                <Spinner /> A Claude sign-in window opened. Finish signing in in your browser – this page notices automatically.
+                              </span>
+                            ) : (
+                              <>
+                                <div>Run this command in a terminal to sign in:</div>
+                                <code translate="no" className="mt-1 block select-all rounded bg-ink-950 px-2 py-1 text-[11px]">
+                                  {waitingLogin.manualCommand}
+                                </code>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-col gap-1.5">
+                        {claude.found && claude.loggedIn !== false && (
+                          <button className="btn-primary btn-sm" disabled={!!busy} onClick={() => void connect({ kind: 'cli', type: claude.type, label: claude.label, command: claude.command })}>
+                            {busy === claude.type ? <Spinner /> : 'Use'}
+                          </button>
+                        )}
+                        {claude.found && claude.loggedIn === false && (
+                          <button className="btn-primary btn-sm" onClick={() => void signIn()}>
+                            <LogIn className="h-3.5 w-3.5" /> Sign in to Claude
+                          </button>
+                        )}
+                        <button className="btn-ghost btn-sm" onClick={() => void detect.refetch()}>
+                          <RefreshCw className={cx('h-3.5 w-3.5', detect.isFetching && 'animate-spin')} /> Check again
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {(detect.data?.cli ?? []).filter((c) => c.type !== 'claude-code-cli').map((c) => (
                   <Option
                     key={c.type}
                     icon={<Laptop className={cx('h-5 w-5', c.found ? 'text-accent-400' : 'text-slate-600')} />}
@@ -187,7 +258,7 @@ export default function SetupWizard({ open, onClose }: { open: boolean; onClose:
             {keyOpt && (
               <div className="mt-3 rounded-xl border border-white/10 bg-ink-850 p-3">
                 <div className="mb-1 text-xs text-slate-400">
-                  Paste your {keyOpt.label} API key ({keyOpt.hint}). Get one at: <span className="text-slate-300">{keyOpt.where}</span>. The key is stored encrypted.
+                  {`Paste your ${keyOpt.label} API key (${keyOpt.hint}). Get one at:`} <span className="text-slate-300">{keyOpt.where}</span>. The key is stored encrypted.
                 </div>
                 <div className="flex gap-2">
                   <input className="input" type="password" autoComplete="off" placeholder="Paste the key here" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />

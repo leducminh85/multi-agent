@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { ConfirmProvider, ToastProvider } from './components/ui';
 import './index.css';
+import { getLang, startTranslator } from './lib/i18n';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,3 +26,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </React.StrictMode>,
 );
+
+startTranslator(getLang());

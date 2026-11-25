@@ -56,7 +56,7 @@ export function Bubble({ m, onTask }: { m: Message; onTask: (id: string) => void
           {m.kind !== 'message' && <Badge className={KIND_STYLE[m.kind] ?? KIND_STYLE.message}>{m.kind}</Badge>}
           <span>{timeAgo(m.createdAt)}</span>
         </div>
-        <div className="whitespace-pre-wrap break-words">{m.content}</div>
+        <div translate="no" className="whitespace-pre-wrap break-words">{m.content}</div>
         {m.attachments.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {m.attachments.map((a) => (
@@ -196,7 +196,7 @@ function AgentChannel({ onTask }: { onTask: (id: string) => void }) {
                 </button>
               )}
             </div>
-            <div className="mt-1 whitespace-pre-wrap text-sm text-slate-300">{m.content}</div>
+            <div translate="no" className="mt-1 whitespace-pre-wrap text-sm text-slate-300">{m.content}</div>
           </li>
         ))}
       </ul>

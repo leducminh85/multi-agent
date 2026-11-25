@@ -55,7 +55,7 @@ function MissionDetail({ id, onOpenTask }: { id: string; onOpenTask: (id: string
     <div className="ml-7 mt-3 space-y-3">
       <div className="rounded-lg bg-ink-850 p-3 text-sm text-slate-300">
         <div className="label">Request</div>
-        <div className="whitespace-pre-wrap">{m.requestText}</div>
+        <div translate="no" className="whitespace-pre-wrap">{m.requestText}</div>
         {m.plan?.summary && (
           <>
             <div className="label mt-3">Plan</div>

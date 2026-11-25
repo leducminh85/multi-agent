@@ -9,6 +9,16 @@ import type { ChatMessage, InputImage } from '../providers/types.js';
 import { PROTOCOL_INSTRUCTIONS } from './protocol.js';
 import type { Mission, Store, Task } from './store.js';
 
+/**
+ * Clip a colleague's output for inlining. The note tells the agent to work with what it got: asking colleagues
+ * to "resend the cut part" just produces another clipped copy and burns tokens (observed in real runs).
+ */
+function clipInput(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}
+…[${text.length - max} more characters omitted for length. Work with the part above; do not ask colleagues to resend it – if something essential is missing, say so in your answer.]`;
+}
+
 export interface BuiltContext {
   system: string;
   messages: ChatMessage[];
@@ -99,7 +109,7 @@ export class ContextBuilder {
       const dep = this.store.findTask(depId);
       if (!dep) continue;
       deps++;
-      const body = dep.status === 'completed' ? truncate(dep.output ?? '', rt.maxContextChars) : `(${dep.status}) ${dep.errorLog.split('\n').filter(Boolean).pop() ?? ''}`;
+      const body = dep.status === 'completed' ? clipInput(dep.output ?? '', rt.maxContextChars) : `(${dep.status}) ${dep.errorLog.split('\n').filter(Boolean).pop() ?? ''}`;
       sections.push(`## Input from "${dep.title}" (by ${dep.agentName ?? 'unknown'}, status ${dep.status})\n${body}`);
     }
 

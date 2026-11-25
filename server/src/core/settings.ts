@@ -42,7 +42,7 @@ export const DEFAULT_SETTINGS: SettingsShape = {
     maxDelegationDepth: 2,
     autoSynthesis: true,
     autoReview: false,
-    maxContextChars: 12000,
+    maxContextChars: 40000,
   },
   usage: { warnPercent: 80, criticalPercent: 95, billingSyncMinutes: 60, healthCheckMinutes: 15 },
   media: { transcriptionProviderId: null, visionProviderId: null },

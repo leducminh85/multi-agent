@@ -1,3 +1,4 @@
+import LangToggle from '../components/LangToggle';
 import { Building2, Lock } from 'lucide-react';
 import { useState } from 'react';
 import { post } from '../lib/api';
@@ -25,7 +26,8 @@ export default function LoginPage({ setupRequired, onAuthenticated }: { setupReq
   };
 
   return (
-    <div className="flex min-h-full items-center justify-center p-6">
+    <div className="relative flex min-h-full items-center justify-center p-6">
+      <LangToggle className="absolute right-4 top-4" />
       <form onSubmit={submit} className="card w-full max-w-sm p-6 shadow-glow">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-600/20 text-accent-400">

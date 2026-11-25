@@ -24,6 +24,7 @@ import { useAlerts, useApprovals, useOverview } from '../lib/hooks';
 import { timeAgo } from '../lib/format';
 import { useRealtimeStatus } from '../lib/realtime';
 import { cx, useConfirm, useToast } from './ui';
+import LangToggle from './LangToggle';
 
 /** The dashboard is the whole app for day-to-day use; everything else sits in the "More" menu. */
 const MORE = [
@@ -115,11 +116,12 @@ export default function Layout({ user, onLogout, children }: { user: { username:
             <span className="hidden sm:inline">{rt === 'open' ? 'Live' : rt === 'connecting' ? 'Connecting…' : 'Offline'}</span>
             {overview.data && (
               <span className="hidden text-slate-500 lg:inline">
-                · {overview.data.agents.active}/{overview.data.agents.total} agents working · {overview.data.tasks.running ?? 0} running tasks
+                {`· ${overview.data.agents.active}/${overview.data.agents.total} agents working · ${overview.data.tasks.running ?? 0} running tasks`}
               </span>
             )}
           </div>
           <div className="flex-1" />
+          <LangToggle />
           {stopped && <span className="rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-300">QUEUE PAUSED</span>}
           <div className="relative">
             <button className="btn-ghost relative" onClick={() => setShowAlerts((v) => !v)} title="Alerts & approvals">

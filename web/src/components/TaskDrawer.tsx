@@ -144,7 +144,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: { taskId: st
 
           <section>
             <h4 className="label">Description</h4>
-            <p className="whitespace-pre-wrap text-sm text-slate-300">{t.description || '—'}</p>
+            <p translate="no" className="whitespace-pre-wrap text-sm text-slate-300">{t.description || '—'}</p>
           </section>
 
           {(t.dependencies.length > 0 || t.subtasks.length > 0) && (
@@ -228,7 +228,7 @@ export default function TaskDrawer({ taskId, onClose, onOpenTask }: { taskId: st
                     <div className="text-xs text-slate-500">
                       {m.fromName ?? m.fromType} → {m.toName ?? m.toType ?? 'all'} · {m.kind} · {timeAgo(m.createdAt)}
                     </div>
-                    <div className="whitespace-pre-wrap text-slate-300">{m.content}</div>
+                    <div translate="no" className="whitespace-pre-wrap text-slate-300">{m.content}</div>
                   </li>
                 ))}
               </ul>

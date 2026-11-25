@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { cliVersion, flattenPrompt, runCli, safeArg } from './cli.js';
+import { claudeAuthStatus, cleanEnvForClaude, resolveClaudeCommand } from './claudeLocate.js';
 import { ProviderError, type ProviderAdapter, type ProviderContext, type RunRequest, type RunResult } from './types.js';
 
 const cliCaps = {
@@ -40,7 +41,7 @@ function imagesToFiles(req: RunRequest): string {
 // ---------------- Claude Code CLI ----------------
 async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResult> {
   const started = Date.now();
-  const command = ctx.config.command || 'claude';
+  const command = resolveClaudeCommand(ctx.config.command as string | undefined);
   const p = req.permissions;
   const allowed = ['Read', 'Glob', 'Grep', 'LS'];
   if (p.allowFileWrite) allowed.push('Edit', 'MultiEdit', 'Write', 'NotebookEdit');
@@ -60,6 +61,7 @@ async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResu
     cwd: ensureCwd(req.cwd),
     signal: req.signal,
     timeoutMs: req.timeoutMs ?? 15 * 60_000,
+    replaceEnv: cleanEnvForClaude(),
   });
   req.onStatus?.('CLI process exited');
   let json: any;
@@ -76,7 +78,12 @@ async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResu
     cacheWriteTokens: u.cache_creation_input_tokens ?? 0,
   };
   if (json.is_error || json.subtype !== 'success') {
-    const err = new ProviderError(`Claude CLI error: ${json.result ?? json.subtype ?? 'unknown'}`, /rate|overloaded|limit/i.test(String(json.result)));
+    const raw = String(json.result ?? json.subtype ?? 'unknown');
+    const notLoggedIn = /not logged in|\/login|invalid api key|authentication/i.test(raw);
+    const err = new ProviderError(
+      notLoggedIn ? 'Claude is not signed in on this computer – press "Sign in to Claude" (dashboard setup or Settings → Providers), then try again.' : `Claude CLI error: ${raw}`,
+      !notLoggedIn && /rate|overloaded|limit|529|503/i.test(raw),
+    );
     (err as any).usage = usage;
     throw err;
   }
@@ -101,7 +108,7 @@ export const claudeCliAdapter: ProviderAdapter = {
     description:
       'Runs the locally installed `claude` CLI in print mode inside the project workspace. Uses whatever login the CLI has (Claude Pro/Max subscription or API key). Agentic: can read/edit files and run commands when permitted.',
     configFields: [
-      { key: 'command', label: 'Command', type: 'text', placeholder: 'claude', default: 'claude' },
+      { key: 'command', label: 'Command', type: 'text', placeholder: 'claude (auto-detected)', default: 'claude', help: 'Leave as "claude" to auto-detect the CLI, including the copy bundled with the Claude app or VS Code extension' },
       { key: 'defaultModel', label: 'Model (optional)', type: 'text', placeholder: 'e.g. opus, sonnet, claude-opus-5-5' },
     ],
     credentialFields: [],
@@ -116,11 +123,15 @@ export const claudeCliAdapter: ProviderAdapter = {
   },
   run: runClaude,
   async checkConnection(ctx) {
+    const command = resolveClaudeCommand(ctx.config.command as string | undefined);
     try {
-      const v = await cliVersion(ctx.config.command || 'claude');
-      return { ok: true, message: `CLI available: ${v}. Login state is checked on first run.` };
+      const v = await cliVersion(command);
+      const auth = await claudeAuthStatus(command);
+      if (auth && !auth.loggedIn)
+        return { ok: false, message: `Claude Code ${v} found, but it is not signed in. Press "Sign in to Claude" and finish signing in in the browser.` };
+      return { ok: true, message: `Claude Code ${v}${auth ? ` – signed in (${auth.authMethod})` : ''}` };
     } catch (e: any) {
-      return { ok: false, message: e.message };
+      return { ok: false, message: /not found/i.test(e.message) ? 'Claude Code is not installed on this computer.' : e.message };
     }
   },
 };
@@ -224,12 +235,18 @@ async function runAgy(ctx: ProviderContext, req: RunRequest): Promise<RunResult>
   const args = ['--output-format', 'json'];
   const model = safeArg(req.model || ctx.config.defaultModel, 'model');
   if (model) args.push('--model', model);
-  if (!p.allowFileWrite && !p.allowCommandExecution) args.push('--mode', 'plan');
-  else args.push('--mode', 'accept-edits');
+  // NOTE: agy's "plan" mode is not read-only – it writes an implementation plan and waits for approval
+  // instead of doing the work (verified: empty/plan-only responses). Read-only agents use the default
+  // mode (tool permissions are asked for and denied in print mode) plus --sandbox.
+  if (p.allowFileWrite || p.allowCommandExecution) args.push('--mode', 'accept-edits');
+  args.push('--disable-slash-commands');
   if (ctx.config.sandbox !== false) args.push('--sandbox');
   const timeoutMs = req.timeoutMs ?? 15 * 60_000;
   args.push('--print-timeout', `${Math.floor(timeoutMs / 1000)}s`);
-  let prompt = flattenPrompt(req.system, req.messages) + imagesToFiles(req);
+  let prompt =
+    flattenPrompt(req.system, req.messages) +
+    imagesToFiles(req) +
+    '\n\nReply with your complete final answer directly in your message. Do not write a plan or ask for approval first.';
   if (prompt.length > ARG_PROMPT_LIMIT) {
     // Windows command lines are limited to ~32k chars: hand over long prompts through a file.
     if (!cwd) throw new ProviderError('Prompt too long for Antigravity CLI without a workspace', false);

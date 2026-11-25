@@ -57,9 +57,11 @@ npm start
 
 Lần đầu mở trang, tạo tài khoản quản lý (CEO). Sau đó trình **Set up your office** tự mở:
 
-1. Hệ thống tự dò AI có sẵn trên máy (Claude Code, Codex, Antigravity, Ollama). Bấm vào cái muốn dùng – hoặc chọn Claude/ChatGPT/Gemini và dán API key. Không cần điền gì khác: model và cấu hình được chọn sẵn, kết nối được kiểm tra thật.
+1. Hệ thống tự dò AI có sẵn trên máy (Claude, Codex, Antigravity, Ollama). **Claude**: dùng được cả bản `claude` đi kèm app Claude desktop hoặc extension VS Code – nếu chưa đăng nhập, bấm **Sign in to Claude / Đăng nhập Claude**, cửa sổ đăng nhập chính thức mở ra, đăng nhập trên trình duyệt là xong (trang tự nhận ra). Bấm vào cái muốn dùng – hoặc chọn Claude/ChatGPT/Gemini và dán API key. Không cần điền gì khác: model và cấu hình được chọn sẵn, kết nối được kiểm tra thật.
 2. Hệ thống tự tạo đội 6 nhân viên AI.
 3. Gõ yêu cầu vào ô **Assign work** ở đầu dashboard (có thể đính kèm file, ghi âm).
+
+Nút **EN / VI** ở góc trên đổi ngôn ngữ giao diện (cả trang đăng nhập).
 
 **Dashboard một màn hình** gồm 4 ô cập nhật realtime: **Virtual office** (click vào nhân vật để xem/giao việc), **Communication** (chat với trợ lý, tin nhắn giữa các agent, mục *Needs you* để phê duyệt/trả lời), **Tasks** (yêu cầu, đang làm, xong, lỗi) và **Usage** (token, chi phí, quota từng AI). Các trang chi tiết (nhân viên, Kanban/Gantt, usage đầy đủ, dự án, file, cài đặt) nằm trong menu **More**.
 

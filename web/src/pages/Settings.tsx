@@ -55,6 +55,10 @@ function ProvidersTab() {
   const [wizard, setWizard] = useState(false);
   const confirm = useConfirm();
   const remove = useAction((id: string) => del(`/providers/${id}`), { success: 'Provider removed', invalidate: [['providers']] });
+  const claudeLogin = useAction(() => post<{ opened: boolean; manualCommand: string }>('/providers/claude-login'), {
+    success: (r) =>
+      r.opened ? 'A Claude sign-in window opened. Finish signing in in your browser, then press Test.' : `Run this in a terminal to sign in: ${r.manualCommand}`,
+  });
   const check = useAction((id: string) => post(`/providers/${id}/check`), { success: (r: any) => (r.ok ? `OK – ${r.message}` : `Failed – ${r.message}`), invalidate: [['providers']] });
 
   return (
@@ -90,6 +94,11 @@ function ProvidersTab() {
                 </div>
                 {p.statusMessage && <div className="truncate text-xs text-slate-500">{p.statusMessage} {p.lastCheckedAt && `(${timeAgo(p.lastCheckedAt)})`}</div>}
               </div>
+              {p.type === 'claude-code-cli' && p.status === 'error' && (
+                <button className="btn-primary btn-sm" onClick={() => claudeLogin.mutate()}>
+                  Sign in to Claude
+                </button>
+              )}
               <button className="btn-outline btn-sm" onClick={() => check.mutate(p.id)}>
                 <RefreshCw className="h-3.5 w-3.5" /> Test
               </button>
