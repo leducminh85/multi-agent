@@ -157,6 +157,49 @@ describe('Orchestrator – reliability', () => {
     expect(s.store.getTask(after.id).status).toBe('completed');
   });
 
+  it('does not stop at a failure: the PM hands the task to another agent with a backup plan', async () => {
+    const { s, mock, team } = setup(
+      (req, call) => {
+        if (isPlanner(req)) return JSON.stringify({ tasks: [{ key: 'a', title: 'Edit video', role: 'developer' }, { key: 'b', title: 'Publish', role: 'content', depends_on: ['a'] }] });
+        if (req.system.includes('## Failure recovery mode')) {
+          const content = team.agents.find((a) => a.roleKey === 'content')!;
+          return JSON.stringify({ decision: 'new_approach', agent_id: content.id, instructions: 'Use ffmpeg instead of the editor', reason: 'Editor crashed; ffmpeg works.' });
+        }
+        if (taskTitle(call.prompt) === 'Edit video' && req.system.includes('You are "developer-agent"')) return new ProviderError('HTTP 400: tool crashed', false, 400);
+        return `done: ${taskTitle(call.prompt)}`;
+      },
+      { roles: ['project_manager', 'developer', 'content'] },
+    );
+    const m = await s.orchestrator.submitMission({ text: 'make a video' }, 'ceo');
+    await waitFor(() => ['completed', 'failed'].includes(s.store.getMission(m.id).status), 10000, 'mission end');
+    await s.orchestrator.idle();
+    expect(s.store.getMission(m.id).status).toBe('completed');
+    const edit = s.store.listTasks({ missionId: m.id }).find((t) => t.title === 'Edit video')!;
+    expect(edit.status).toBe('completed');
+    expect(edit.agentName).toBe('content-agent');
+    // The new agent got the backup plan; the team chat explains what happened.
+    const retry = mock.calls.filter((c) => taskTitle(c.prompt) === 'Edit video').pop()!;
+    expect(retry.prompt).toContain('Use ffmpeg instead of the editor');
+    expect(s.comms.list({ channel: 'agents' }).some((x) => x.content.includes('backup approach') && x.content.includes('ffmpeg works'))).toBe(true);
+  });
+
+  it('lets the PM skip a non-essential failed task with a workaround so the mission continues', async () => {
+    const { s } = setup(
+      (req, call) => {
+        if (isPlanner(req)) return JSON.stringify({ tasks: [{ key: 'a', title: 'Fetch logo', role: 'developer' }, { key: 'b', title: 'Write post', role: 'content', depends_on: ['a'] }] });
+        if (req.system.includes('## Failure recovery mode')) return JSON.stringify({ decision: 'skip', output: 'Use the text logo instead.', reason: 'Logo is optional.' });
+        if (taskTitle(call.prompt) === 'Fetch logo') return new ProviderError('HTTP 400: blocked', false, 400);
+        return call.prompt.includes('Use the text logo instead.') ? 'post with text logo' : 'post';
+      },
+      { roles: ['project_manager', 'developer', 'content'] },
+    );
+    const m = await s.orchestrator.submitMission({ text: 'post' }, 'ceo');
+    await waitFor(() => ['completed', 'failed'].includes(s.store.getMission(m.id).status), 10000, 'mission end');
+    const tasks = s.store.listTasks({ missionId: m.id });
+    expect(tasks.find((t) => t.title === 'Fetch logo')!.output).toMatch(/Skipped/);
+    expect(tasks.find((t) => t.title === 'Write post')!.output).toBe('post with text logo');
+  });
+
   it('cancels a running mission and aborts provider calls', async () => {
     const { s } = setup((req) => (isPlanner(req) ? JSON.stringify({ tasks: [{ key: 'a', title: 'Slow', role: 'developer' }] }) : 'never'), { delayMs: 3000 });
     const m = await s.orchestrator.submitMission({ text: 'go' }, 'ceo');

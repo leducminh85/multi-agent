@@ -564,10 +564,18 @@ const VI: Record<string, string> = {
   'Critical threshold (%)': 'Ngưỡng nghiêm trọng (%)',
   'Reset pricing?': 'Đặt lại bảng giá?',
   Reset: 'Đặt lại',
+  'Failed – the project manager is reviewing a backup plan': 'Bị lỗi – quản lý dự án đang tìm phương án dự phòng',
+  'project manager is reviewing the failure': 'quản lý dự án đang xử lý lỗi',
+  'another available agent': 'một nhân viên khác đang rảnh',
 };
 
 /** Dynamic strings: [pattern, replacement]. Applied to whole (trimmed) text nodes. */
 const PATTERNS: [RegExp, string][] = [
+  [/^Handed over to (.+) by (.+)$/, '$2 đã giao lại cho $1'],
+  [/^Backup approach by (.+) – assigned to (.+)$/, '$1 đổi sang phương án dự phòng – giao cho $2'],
+  [/^Skipped with a workaround by (.+)$/, '$1 bỏ qua bước này và dùng cách khác'],
+  [/^(.+) skipped "(.+)" with a workaround$/, '$1 bỏ qua "$2" và dùng cách khác'],
+  [/^(.+) (handed|reworked) "(.+)" → (.+)$/, '$1 xử lý lỗi "$3" → giao cho $4'],
   [/^Resets (.+)$/, 'Reset lúc $1'],
   [/^Updated (.+)$/, 'Cập nhật $1'],
   [/^(.+) · 5-hour limit$/, '$1 · Giới hạn 5 giờ'],

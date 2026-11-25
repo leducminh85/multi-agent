@@ -48,6 +48,9 @@ const WAIT_HELP = 'help from';
 const WAIT_MANAGER = 'manager answer';
 const WAIT_APPROVAL = 'approval';
 const MAX_RESUME_ROUNDS = 2;
+const WAIT_RECOVERY = 'project manager is reviewing the failure';
+const RECOVERY_LABEL = 'Recovery plan';
+const MAX_RECOVERY_ROUNDS = 2;
 
 /**
  * Central orchestrator: request → plan → tasks (DAG) → agent assignment → execution →
@@ -108,6 +111,12 @@ export class Orchestrator {
       this.d.store.updateTask(t.id, { status: 'pending', attempts: Math.max(0, t.attempts - 1) });
     }
     for (const a of this.d.agents.list()) if (a.activity !== 'idle' || a.currentTaskId) this.d.agents.setActivity(a.id, 'idle', null, null);
+    // A failure review interrupted by the restart: run it again.
+    for (const t of this.d.store.listTasks({ status: ['waiting'] }).filter((x) => x.waitingReason === WAIT_RECOVERY)) {
+      const failed = (t.agentId && this.d.agents.find(t.agentId)) || this.d.agents.list()[0];
+      if (failed) this.track(this.recoverTask(t.id, failed));
+      else this.failTask(t.id);
+    }
     for (const m of this.d.store.listMissions({ status: 'planning' })) {
       if (!this.d.store.listTasks({ missionId: m.id }).length) this.track(this.planMission(m.id));
       else this.d.store.updateMission(m.id, { status: 'running' });
@@ -824,10 +833,132 @@ ${rt.autoSynthesis ? '- Do NOT add a final "consolidate/summarise results" task 
       });
       this.d.store.addStep(taskId, `Retry scheduled in ${Math.round(delay / 1000)} s`, 'info');
       this.later(delay + 50);
+    } else if (this.recoveryRounds(task) < MAX_RECOVERY_ROUNDS && this.pickRecoveryReviewer(agent)) {
+      // Do not stop at the error: the PM (or the next manager up) reviews it and hands over / changes the approach.
+      this.d.store.updateTask(taskId, { status: 'waiting', waitingReason: WAIT_RECOVERY, notBefore: null });
+      this.d.store.addStep(taskId, 'Failed – the project manager is reviewing a backup plan', 'info');
+      this.track(this.recoverTask(taskId, agent));
     } else {
-      this.d.store.updateTask(taskId, { status: 'failed', finishedAt: nowIso(), waitingReason: null });
-      this.onTaskTerminal(taskId);
+      this.failTask(taskId);
     }
+  }
+
+  private failTask(taskId: string): void {
+    this.d.store.updateTask(taskId, { status: 'failed', finishedAt: nowIso(), waitingReason: null });
+    this.onTaskTerminal(taskId);
+  }
+
+  private recoveryRounds(task: Task): number {
+    return task.extraContext.filter((x) => x.kind === 'note' && x.label.startsWith(RECOVERY_LABEL)).length;
+  }
+
+  /** Who reviews a failure: the PM, else the CEO assistant, else any other available agent – preferably not the one that failed. */
+  private pickRecoveryReviewer(failed: Agent): Agent | null {
+    const avail = this.available();
+    const others = avail.filter((a) => a.id !== failed.id);
+    const pool = others.length ? others : avail;
+    return pool.find((a) => a.roleKey === 'project_manager') ?? pool.find((a) => a.roleKey === 'ceo_assistant') ?? pool[0] ?? null;
+  }
+
+  /**
+   * Failure recovery: the reviewer sees the task, the errors and the available team and decides to
+   * hand the task to another agent, retry with a different (backup) approach, skip it with a workaround
+   * so the mission continues, or – only when nothing can work – give up and explain to the manager.
+   */
+  private async recoverTask(taskId: string, failedAgent: Agent): Promise<void> {
+    const task = this.d.store.getTask(taskId);
+    const reviewer = this.pickRecoveryReviewer(failedAgent);
+    const still = () => {
+      const t = this.d.store.findTask(taskId);
+      return t && t.status === 'waiting' && t.waitingReason === WAIT_RECOVERY ? t : null;
+    };
+    if (!reviewer) return void (still() && this.failTask(taskId));
+    const mission = task.missionId ? this.d.store.getMission(task.missionId) : null;
+    const team = this.available()
+      .filter((a) => a.roleKey !== 'ceo_assistant' || a.id === task.agentId)
+      .map((a) => {
+        let p: { name: string } | null = null;
+        try {
+          p = a.providerId ? this.d.providers.get(a.providerId) : null;
+        } catch {
+          /* removed provider */
+        }
+        return `- id=${a.id} | ${a.name} | role ${a.roleKey} | AI ${p?.name ?? '?'}${a.model ? ` (${a.model})` : ''}${a.id === failedAgent.id ? ' | ← failed this task' : ''}`;
+      })
+      .join('\n');
+    const errors = task.errorLog.split('\n').filter(Boolean).slice(-6).join('\n');
+    const previousPlans = task.extraContext.filter((x) => x.kind === 'note' && x.label.startsWith(RECOVERY_LABEL)).map((x) => `- ${x.content.slice(0, 600)}`).join('\n');
+    const system = `${this.d.context.systemFor(reviewer, { protocol: false })}
+
+## Failure recovery mode
+A task in your team failed after all automatic retries. As the responsible manager you must NOT just report the error:
+find a way to still get the result. Options:
+- "reassign": hand the task to another agent (better suited, or using a different AI) – give them clear instructions.
+- "new_approach": retry with a different, backup way of doing it (other tool, simpler method, smaller scope, other source) – the instructions must describe that approach concretely; you may also pick the agent.
+- "skip": the task is not essential or can be worked around – give the output/notes the following tasks should use instead.
+- "give_up": only if nothing can work without the manager (e.g. needs a login, money or a decision only the manager can make). Explain exactly what the manager must do.
+Do not repeat a plan that already failed. Return ONLY a JSON object:
+{"decision": "reassign|new_approach|skip|give_up", "agent_id": "<id from the team list or empty>", "instructions": "<self-contained instructions for the new attempt>", "output": "<for skip: what to pass on>", "reason": "<1-2 sentences for the manager>", "message": "<short note to the team chat saying what failed and what happens now>"}
+Write "reason" and "message" in the language the manager used in the mission.`;
+    const user = `${mission ? `# Mission\n${truncate(mission.requestText, 3000)}\n\n` : ''}# Failed task: ${task.title}\n${truncate(task.description, 4000)}\n\n# Errors (latest last)\n${truncate(errors, 3000)}\n\n${previousPlans ? `# Backup plans already tried (they failed too)\n${previousPlans}\n\n` : ''}# Available team\n${team || '(nobody else)'}`;
+    this.d.runtime.setActivity(reviewer.id, 'thinking', `Fixing a failure: ${task.title}`);
+    type Decision = { decision?: string; agent_id?: string; instructions?: string; output?: string; reason?: string; message?: string };
+    let decision = null as Decision | null;
+    try {
+      const res = await this.d.runtime.invoke(reviewer, { system, messages: [{ role: 'user', content: user }], signal: new AbortController().signal, missionId: task.missionId ?? undefined, onFailover: (f) => this.announceFailover(f, reviewer) });
+      decision = extractJson(res.text) as Decision;
+    } catch (e) {
+      this.d.store.appendError(taskId, `recovery review by ${reviewer.name} failed: ${errorMessage(e)}`);
+    } finally {
+      const a = this.d.agents.find(reviewer.id);
+      if (a && !a.currentTaskId) this.d.runtime.setActivity(reviewer.id, 'idle', null);
+    }
+    const t = still();
+    if (!t) return;
+    const kind = String(decision?.decision ?? '').toLowerCase();
+    const reason = String(decision?.reason ?? '').trim();
+    const note = String(decision?.message ?? '').trim();
+    const say = (content: string, channel: 'agents' | 'global' = 'agents') =>
+      this.d.comms.post({ channel, kind: 'message', fromType: 'agent', fromId: reviewer.id, fromName: reviewer.name, toType: channel === 'global' ? 'user' : 'broadcast', missionId: t.missionId, taskId, content });
+
+    if (kind === 'skip') {
+      const output = `⚠️ Skipped by ${reviewer.name} after a failure${reason ? `: ${reason}` : ''}\n\n${String(decision?.output ?? '').trim()}`.trim();
+      this.d.store.updateTask(taskId, { status: 'completed', output, finishedAt: nowIso(), waitingReason: null, progress: 100 });
+      this.d.store.addStep(taskId, `Skipped with a workaround by ${reviewer.name}`, 'info', reason || null);
+      say(note ? `🔧 ${note}` : `🔧 "${t.title}" failed. I am skipping it with a workaround so the rest of the work continues.${reason ? `\n${reason}` : ''}`);
+      this.d.activity.record({ type: 'task.recovered', level: 'warning', message: `${reviewer.name} skipped "${t.title}" with a workaround`, taskId, missionId: t.missionId, agentId: reviewer.id });
+      this.onTaskTerminal(taskId);
+      return void this.tick();
+    }
+    if (kind === 'reassign' || kind === 'new_approach') {
+      const target = this.available().find((a) => a.id === decision?.agent_id);
+      const instructions = String(decision?.instructions ?? '').trim();
+      const plan: ExtraContext = {
+        kind: 'note',
+        label: `${RECOVERY_LABEL} by ${reviewer.name}`,
+        content: `${kind === 'reassign' ? 'Handed over' : 'New approach'} after the previous attempt failed (${truncate(errors.split('\n').pop() ?? '', 300)}).${instructions ? `\nInstructions: ${instructions}` : ''}`,
+        at: nowIso(),
+      };
+      this.d.store.updateTask(taskId, {
+        status: target ? 'assigned' : 'pending',
+        agentId: target?.id ?? null,
+        pinned: !!target,
+        roleKey: target?.roleKey ?? t.roleKey,
+        attempts: 0,
+        notBefore: null,
+        waitingReason: null,
+        progress: null,
+        extraContext: [...t.extraContext, plan],
+      });
+      const who = target ? target.name : 'another available agent';
+      this.d.store.addStep(taskId, kind === 'reassign' ? `Handed over to ${who} by ${reviewer.name}` : `Backup approach by ${reviewer.name} – assigned to ${who}`, 'info', instructions || null);
+      say(note ? `🔧 ${note}` : `🔧 "${t.title}" failed (${failedAgent.name}). ${kind === 'reassign' ? `Handing it to ${who}.` : `Trying a backup approach with ${who}.`}${reason ? `\n${reason}` : ''}`);
+      this.d.activity.record({ type: 'task.recovered', level: 'warning', message: `${reviewer.name} ${kind === 'reassign' ? 'handed' : 'reworked'} "${t.title}" → ${who}`, taskId, missionId: t.missionId, agentId: reviewer.id });
+      return void this.tick();
+    }
+    // give_up or no usable decision → fail, with the reviewer's explanation for the manager.
+    if (reason || note) say(`⚠️ "${t.title}" could not be completed even with a backup plan.\n${note || reason}`, 'global');
+    this.failTask(taskId);
   }
 
   private onTaskTerminal(taskId: string): void {
