@@ -11,7 +11,7 @@ const DEFAULT_PERMS: AgentPermissions = {
   fileAccess: 'project',
   allowCommandExecution: false,
   allowFileWrite: false,
-  allowNetwork: false,
+  allowNetwork: true,
   canDelegate: true,
   canMessageAgents: true,
   requireApprovalForSensitiveActions: true,

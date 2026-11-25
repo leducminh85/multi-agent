@@ -120,3 +120,56 @@ describe('resolveClaudeCommand', () => {
     expect(resolveClaudeCommand(gone)).not.toBe(gone);
   });
 });
+
+describe('plan usage readings', () => {
+  it('reads Claude Code rate_limit_event windows (real payload shape)', async () => {
+    const { claudeQuotas } = await import('../src/providers/cliAdapters.js');
+    const q = claudeQuotas({
+      status: 'allowed',
+      unifiedWindows: { five_hour: { utilization: 0.48, resetsAt: 1795608000, status: 'allowed' }, seven_day: { utilization: 0.4, resetsAt: 1795788000, status: 'allowed' } },
+    })!;
+    expect(q.map((x) => [x.metric, x.label, Math.round(x.percentUsed)])).toEqual([
+      ['claude_five_hour', '5-hour limit', 48],
+      ['claude_seven_day', 'Weekly · all models', 40],
+    ]);
+    expect(q[0].resetsAt).toBe(new Date(1795608000 * 1000).toISOString());
+  });
+
+  it('reads agy /usage groups (real payload shape)', async () => {
+    const { agyQuotas } = await import('../src/providers/cliAdapters.js');
+    const q = agyQuotas({
+      command: {
+        name: 'usage',
+        data: {
+          groups: [
+            { name: 'Gemini Models', buckets: [{ id: 'gemini-weekly', window: 'weekly', remaining_fraction: 0.93, reset_time: '2026-12-02T07:04:32Z' }, { id: 'gemini-5h', window: '5h', remaining_fraction: 0.72, reset_time: '2026-11-25T12:04:32Z' }] },
+            { name: 'Claude and GPT models', buckets: [{ id: '3p-5h', window: '5h', remaining_fraction: 1, reset_time: '2026-11-25T13:23:29Z' }] },
+          ],
+        },
+      },
+    });
+    expect(q.map((x) => [x.label, Math.round(x.percentUsed)])).toEqual([
+      ['Gemini Models · Weekly limit', 7],
+      ['Gemini Models · 5-hour limit', 28],
+      ['Claude and GPT models · 5-hour limit', 0],
+    ]);
+  });
+
+  it('gives Antigravity its web tools when the agent may use the web (no --sandbox)', async () => {
+    nextStdout = JSON.stringify({ status: 'SUCCESS', response: 'ok', usage: {} });
+    const r = req(false);
+    (r.permissions as any).allowNetwork = true;
+    await antigravityCliAdapter.run({ providerId: 'p', config: { command: 'agy' }, credentials: {} }, r);
+    expect(calls[0].args).not.toContain('--sandbox');
+  });
+
+  it('allows Claude web tools when the agent may use the web', async () => {
+    nextStdout = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'ok', usage: {} });
+    const r = req(false);
+    (r.permissions as any).allowNetwork = true;
+    await claudeCliAdapter.run({ providerId: 'p', config: { command: 'claude' }, credentials: {} }, r);
+    const args = calls[0].args;
+    expect(args[args.indexOf('--allowedTools') + 1]).toContain('WebSearch');
+    expect(args).toContain('stream-json');
+  });
+});

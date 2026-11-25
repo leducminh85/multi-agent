@@ -11,6 +11,7 @@ export function startJobs(s: Services): () => void {
   const timers: NodeJS.Timeout[] = [];
   let lastHealth = 0;
   let lastBilling = 0;
+  let lastQuota = 0;
 
   const loop = async () => {
     const cfg = s.settings.get('usage');
@@ -25,6 +26,12 @@ export function startJobs(s: Services): () => void {
       for (const p of s.providers.list().filter((x) => x.enabled)) {
         await s.providers.check(p.id).catch(() => undefined);
       }
+    }
+    // Plan usage that is free to read (e.g. Antigravity `agy /usage`, no tokens) every 10 minutes.
+    if (now - lastQuota >= 10 * 60_000) {
+      lastQuota = now;
+      for (const p of s.providers.list().filter((x) => x.enabled))
+        if (s.registry.get(p.type).descriptor.quotaRefresh === 'free') await s.runtime.refreshQuota(p.id).catch(() => undefined);
     }
     if (cfg.billingSyncMinutes > 0 && now - lastBilling >= cfg.billingSyncMinutes * 60_000) {
       lastBilling = now;

@@ -105,7 +105,8 @@ docs/     ARCHITECTURE.md (phân tích & thiết kế), PROVIDERS.md (khả năn
 
 ## Giới hạn đã biết (báo cáo trung thực)
 
-- Không nhà cung cấp nào có API chính thức để đọc quota gói đăng ký (Claude Pro/Max, ChatGPT Plus/Pro, Google AI/Antigravity) → nhập thủ công, hệ thống không scrape.
+- Hạn mức gói **Claude** (5 giờ / tuần) và **Antigravity** (theo nhóm model) được đọc trực tiếp từ công cụ CLI chính thức của từng hãng, hiển thị % đã dùng và giờ reset. ChatGPT Plus/Pro chưa có nguồn như vậy → nhập thủ công; hệ thống không scrape.
+- Agent truy cập web được (mặc định bật, tắt từng người ở mục AI & model). Video YouTube: đọc trang, mô tả, tìm kiếm thông tin – AI không xem được hình ảnh video.
 - Chi phí từng request với API là ước tính từ bảng giá (trừ Claude Code CLI báo chi phí); chi phí chính xác lấy từ billing API khi có admin key.
 - % tiến độ của một task đơn lẻ không xác định được → hiển thị bước thực thi thật và live output.
 - Chưa có OCR cho PDF scan; video cần ffmpeg (hoặc Gemini cho file nhỏ).

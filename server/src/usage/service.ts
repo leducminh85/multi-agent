@@ -214,6 +214,23 @@ export class UsageService {
     return q;
   }
 
+  /**
+   * Record readings reported by a vendor tool (source 'cli', confidence 'actual'). An unchanged reading only
+   * refreshes the capture time instead of adding history rows on every run.
+   */
+  recordQuotaSnapshots(providerId: string, snaps: { metric: string; label: string; percentUsed: number; resetsAt: string | null; note?: string }[]): void {
+    for (const sn of snaps) {
+      const used = Math.round(Math.max(0, Math.min(100, sn.percentUsed)) * 10) / 10;
+      const prev = this.db.get<any>('SELECT * FROM quota_entries WHERE provider_id = ? AND metric = ? ORDER BY captured_at DESC LIMIT 1', [providerId, sn.metric]);
+      if (prev && prev.source === 'cli' && prev.used === used && (prev.resets_at ?? null) === (sn.resetsAt ?? null)) {
+        this.db.run('UPDATE quota_entries SET captured_at = ?, label = ? WHERE id = ?', [nowIso(), sn.label, prev.id]);
+        continue;
+      }
+      this.addQuota(providerId, { metric: sn.metric, label: sn.label, used, limitValue: 100, unit: 'percent', resetsAt: sn.resetsAt, confidence: 'actual', note: sn.note ?? null }, 'cli');
+    }
+    this.bus.publish('provider.updated', { id: providerId, quota: true });
+  }
+
   deleteQuota(id: string): void {
     const q = this.quotaById(id);
     this.db.run('DELETE FROM quota_entries WHERE id = ?', [id]);

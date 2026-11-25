@@ -80,6 +80,15 @@ export function providerRoutes(s: Services): Router {
     );
   });
 
+  /** Read plan usage (5-hour / weekly limits) from the vendor's own tool. */
+  r.post(
+    '/providers/:id/quota-refresh',
+    ah(async (req, res) => {
+      const quotas = await s.runtime.refreshQuota(req.params.id, true);
+      res.json({ quotas, latest: s.usage.latestQuotas(req.params.id) });
+    }),
+  );
+
   /** "I switched account / added quota": forget the cooldown and re-test now. */
   r.post(
     '/providers/:id/clear-cooldown',

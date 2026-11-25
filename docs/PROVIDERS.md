@@ -16,7 +16,8 @@ Mỗi provider là một adapter trong `server/src/providers`. Tất cả cùng 
 - Biến môi trường của phiên Claude Code lồng nhau (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, …) được loại khỏi tiến trình agent.
 - Quyền agent → `--allowedTools` / `--disallowedTools` (Read/Glob/Grep luôn có; Edit/Write khi cho phép ghi; Bash khi cho phép chạy lệnh; WebFetch/WebSearch khi cho phép mạng).
 - Usage: token do CLI báo. Chi phí: đăng nhập bằng API key → ghi `total_cost_usd` là chi phí thật; đăng nhập gói Pro/Max (claude.ai) → **không** ghi chi phí (giá trị đó chỉ là quy đổi API, không bị tính tiền), chỉ lưu tham khảo `apiEquivalentUsd`. Đã chạy thật end-to-end với gói claude.ai (`claude-opus-5-5`).
-- **Giới hạn 5 giờ / tuần của gói Pro/Max không có API chính thức** → nhập thủ công.
+- **Hạn mức gói (5 giờ / tuần)**: đọc từ chính Claude Code – chạy với `--output-format stream-json`, CLI phát sự kiện `rate_limit_event` (`unifiedWindows.five_hour / seven_day`: `utilization`, `resetsAt`). Cập nhật sau mỗi lần chạy; nút *Cập nhật mức dùng* gửi 1 yêu cầu rất nhỏ (haiku). Chạm 100% → AI tạm nghỉ tới giờ reset, việc chuyển sang AI khác.
+- Web: khi agent được phép truy cập web → `WebSearch`, `WebFetch` (mở trang, link YouTube – đọc trang/mô tả, không xem được hình video).
 
 ## OpenAI (API) – `openai-api`
 - REST Chat Completions (streaming, `stream_options.include_usage`), ảnh qua `image_url` data URL, phiên âm qua `/v1/audio/transcriptions` (mặc định `whisper-1`).
@@ -35,7 +36,9 @@ Mỗi provider là một adapter trong `server/src/providers`. Tất cả cùng 
 ## Google Antigravity (CLI) – `antigravity-cli`
 - `agy --output-format json [--mode accept-edits] [--sandbox] --disable-slash-commands --print-timeout Ns --print=<prompt>`. **Không dùng `--mode plan`**: ở chế độ này agy chỉ viết kế hoạch và chờ duyệt thay vì làm việc (đã gây lỗi "Empty response"); agent chỉ-đọc chạy chế độ mặc định + `--sandbox`; đã kiểm chứng định dạng JSON thật: `{status, response, usage{input_tokens, output_tokens, thinking_tokens, cache_read_tokens}}`.
 - Prompt dài (> 20k ký tự, do giới hạn dòng lệnh Windows) được ghi vào file trong workspace và agent được yêu cầu đọc file đó.
-- **IDE desktop Antigravity không có API**; quota/credit của gói không có API → nhập thủ công.
+- **Hạn mức gói**: `agy --output-format json --print=/usage` (không tốn token) trả về các nhóm model (Gemini; Claude & GPT) với `remaining_fraction` và `reset_time` cho giới hạn 5 giờ và tuần. Tự cập nhật mỗi 10 phút và sau mỗi lần chạy.
+- Web: `--sandbox` gỡ bỏ công cụ web (`search_web`, `read_url_content`, trình duyệt) → chỉ dùng `--sandbox` khi agent **không** được phép truy cập web. Lệnh terminal vẫn cần duyệt (print mode không tự duyệt).
+- `agy` có đăng nhập riêng (khác app Antigravity): đổi tài khoản bằng `/logout` + `/login` trong `agy` (nút *Đổi tài khoản*).
 
 ## Ollama – `ollama` và OpenAI-compatible – `openai-compatible`
 - Dùng chung phần cài đặt Chat Completions. Ollama kiểm tra kết nối qua `/api/tags`.

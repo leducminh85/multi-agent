@@ -74,6 +74,7 @@ export default function AgentAiPicker({ agent }: { agent: Agent }) {
   const usable = (providers.data ?? []).filter((p) => p.canExecute && p.enabled);
   const [providerId, setProviderId] = useState(agent.providerId ?? '');
   const [model, setModel] = useState(agent.model ?? '');
+  const [web, setWeb] = useState(agent.permissions.allowNetwork);
   const models = useProviderModels(providerId || null);
   const { connectable, connect } = useConnectableAis();
   const [connecting, setConnecting] = useState(false);
@@ -82,10 +83,11 @@ export default function AgentAiPicker({ agent }: { agent: Agent }) {
   useEffect(() => {
     setProviderId(agent.providerId ?? '');
     setModel(agent.model ?? '');
-  }, [agent.id, agent.providerId, agent.model]);
+    setWeb(agent.permissions.allowNetwork);
+  }, [agent.id, agent.providerId, agent.model, agent.permissions.allowNetwork]);
 
-  const dirty = providerId !== (agent.providerId ?? '') || model !== (agent.model ?? '');
-  const save = useAction(() => patch(`/agents/${agent.id}`, { providerId: providerId || null, model: model || null }), {
+  const dirty = providerId !== (agent.providerId ?? '') || model !== (agent.model ?? '') || web !== agent.permissions.allowNetwork;
+  const save = useAction(() => patch(`/agents/${agent.id}`, { providerId: providerId || null, model: model || null, permissions: { allowNetwork: web } }), {
     success: `${agent.name} now uses the selected AI`,
     invalidate: [['agents'], ['agent', agent.id]],
   });
@@ -141,6 +143,10 @@ export default function AgentAiPicker({ agent }: { agent: Agent }) {
           {save.isPending ? <Spinner /> : <Check className="h-4 w-4" />} Save
         </button>
       </div>
+      <label className="mt-2 flex items-center gap-2 text-xs text-slate-300">
+        <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} />
+        Web access (search the internet, open pages and YouTube links)
+      </label>
       {connecting && (
         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
           <Spinner /> Connecting…

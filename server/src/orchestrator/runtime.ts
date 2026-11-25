@@ -2,7 +2,7 @@ import type { Agent, AgentActivity, AgentService } from '../agents/service.js';
 import type { ActivityService } from '../core/activity.js';
 import type { ProviderService } from '../providers/service.js';
 import { formatReset, parseQuota } from '../providers/quota.js';
-import { ProviderError, type ChatMessage, type RunResult } from '../providers/types.js';
+import { ProviderError, type ChatMessage, type QuotaSnapshot, type RunResult } from '../providers/types.js';
 import type { UsageService } from '../usage/service.js';
 
 export interface InvokeOptions {
@@ -44,6 +44,38 @@ export class AgentRuntime {
     private usage: UsageService,
     private activity: ActivityService,
   ) {}
+
+  private lastQuotaRefresh = new Map<string, number>();
+
+  /** Store plan-usage readings; a window at 100% puts the AI in cooldown until that window resets. */
+  recordQuotas(providerId: string, quotas: QuotaSnapshot[] | undefined) {
+    if (!quotas?.length) return;
+    this.usage.recordQuotaSnapshots(providerId, quotas);
+    const full = quotas.filter((q) => q.percentUsed >= 100 && q.resetsAt);
+    if (full.length && this.providers.get(providerId).type === 'claude-code-cli') {
+      const until = new Date(Math.max(...full.map((q) => new Date(q.resetsAt!).getTime())));
+      if (until.getTime() > Date.now()) this.providers.setCooldown(providerId, until, `${this.providers.get(providerId).name} is out of quota – resets in ${formatReset(until)}`);
+    }
+  }
+
+  /** Read plan usage from the vendor tool now. `force` also allows tools that need a tiny request. */
+  async refreshQuota(providerId: string, force = false): Promise<QuotaSnapshot[]> {
+    const ctx = this.providers.context(providerId);
+    const adapter = this.providers.registry.get(ctx.type);
+    if (!adapter.fetchQuota || (!force && adapter.descriptor.quotaRefresh !== 'free')) return [];
+    this.lastQuotaRefresh.set(providerId, Date.now());
+    const q = await adapter.fetchQuota(ctx);
+    this.recordQuotas(providerId, q);
+    return q;
+  }
+
+  /** After a run on a provider whose usage is free to read, refresh it (at most once a minute). */
+  private refreshAfterRun(providerId: string) {
+    const ad = this.providers.registry.get(this.providers.context(providerId).type);
+    if (ad.descriptor.quotaRefresh !== 'free') return;
+    if (Date.now() - (this.lastQuotaRefresh.get(providerId) ?? 0) < 60_000) return;
+    void this.refreshQuota(providerId).catch(() => undefined);
+  }
 
   /** Why an agent cannot run right now (null = can run). */
   unavailableReason(agent: Agent): string | null {
@@ -123,6 +155,8 @@ export class AgentRuntime {
         onStatus: opts.onStatus,
       });
       this.account(agent, ctx.providerId, ctx.type, result.model ?? model ?? ctx.config.defaultModel, result, opts);
+      this.recordQuotas(ctx.providerId, result.quotas);
+      this.refreshAfterRun(ctx.providerId);
       if (result.rateLimit) this.providers.recordRateLimit(ctx.providerId, result.rateLimit);
       const p = this.providers.get(ctx.providerId);
       this.providers.clearCooldown(ctx.providerId);
@@ -130,6 +164,7 @@ export class AgentRuntime {
       return result;
     } catch (e: any) {
       if (e?.usage) this.account(agent, ctx.providerId, ctx.type, model ?? ctx.config.defaultModel, { usage: e.usage, text: '', durationMs: 0 }, opts);
+      if (e?.quotas) this.recordQuotas(ctx.providerId, e.quotas);
       if (e instanceof ProviderError && (e.status === 401 || e.status === 403 || /not found – is the CLI installed|Authentication failed/i.test(e.message))) {
         this.providers.setStatus(ctx.providerId, 'error', e.message);
       }

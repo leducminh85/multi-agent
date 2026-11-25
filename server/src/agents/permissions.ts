@@ -10,7 +10,8 @@ export const permissionsSchema = z.object({
   /** CLI agents: allow writing/editing files in the workspace. */
   allowFileWrite: z.boolean().default(false),
   /** CLI agents: allow web/network tools. */
-  allowNetwork: z.boolean().default(false),
+  // Read-only web access (search, open pages). On by default: research/content work needs it.
+  allowNetwork: z.boolean().default(true),
   /** May ask other agents for help (creates sub-tasks). */
   canDelegate: z.boolean().default(true),
   /** May send messages to other agents. */

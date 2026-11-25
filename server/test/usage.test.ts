@@ -17,6 +17,18 @@ function env() {
 }
 
 describe('usage accounting', () => {
+  it('records plan usage readings from vendor tools without piling up identical rows', () => {
+    const { s, p } = env();
+    const snap = [{ metric: 'claude_five_hour', label: '5-hour limit', percentUsed: 48, resetsAt: '2026-11-25T12:00:00.000Z' }];
+    s.usage.recordQuotaSnapshots(p.id, snap);
+    s.usage.recordQuotaSnapshots(p.id, snap);
+    expect(s.db.all('SELECT * FROM quota_entries WHERE provider_id = ?', [p.id])).toHaveLength(1);
+    s.usage.recordQuotaSnapshots(p.id, [{ ...snap[0], percentUsed: 52 }]);
+    const latest = s.usage.latestQuotas(p.id);
+    expect(latest).toHaveLength(1);
+    expect(latest[0]).toMatchObject({ percentUsed: 52, source: 'cli', confidence: 'actual', unit: 'percent' });
+  });
+
   it('records tokens but no cost for flat-rate subscription runs', () => {
     const { s, p } = env();
     s.usage.record({ providerId: p.id, providerType: 'claude-code-cli', model: 'claude-opus-5-5', usage: { inputTokens: 1000, outputTokens: 1000 }, subscription: true, source: 'cli_report' });

@@ -47,6 +47,11 @@ export class ContextBuilder {
       role.systemPrompt,
     ];
     if (agent.systemPrompt.trim()) parts.push(`## Your personal instructions\n${agent.systemPrompt.trim()}`);
+    parts.push(
+      agent.permissions.allowNetwork
+        ? 'You have web access: use your web search / open-URL tools for current or factual information and cite the URLs you used. For YouTube or other videos you cannot watch the footage: open the video page and search the web for its title, description, chapters, transcript or coverage, and say clearly what you could and could not verify.'
+        : 'You do not have web access in this task. If information from the internet is required, say so instead of guessing.',
+    );
     if (agent.specialties.trim()) parts.push(`## Your specialties\n${agent.specialties.trim()}`);
     parts.push(
       'Answer in the same language as the manager\'s request unless the task says otherwise. Be honest: if information is missing, say what is missing instead of inventing it.',

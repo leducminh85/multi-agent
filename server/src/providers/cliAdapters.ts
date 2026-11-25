@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { cliVersion, flattenPrompt, runCli, safeArg } from './cli.js';
 import { claudeAuthStatus, cleanEnvForClaude, resolveClaudeCommand } from './claudeLocate.js';
-import { ProviderError, type ProviderAdapter, type ProviderContext, type RunRequest, type RunResult } from './types.js';
+import { ProviderError, type ProviderAdapter, type ProviderContext, type QuotaSnapshot, type RunRequest, type RunResult } from './types.js';
 
 const cliCaps = {
   streaming: false,
@@ -57,12 +57,15 @@ async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResu
   if (p.allowCommandExecution) allowed.push('Bash');
   if (p.allowNetwork) allowed.push('WebFetch', 'WebSearch');
   const disallowed = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch'].filter((t) => !allowed.includes(t));
-  const args = ['-p', '--output-format', 'json', '--allowedTools', allowed.join(',')];
+  // stream-json: text arrives as the agent works, and Claude Code reports plan usage (rate_limit_event).
+  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--allowedTools', allowed.join(',')];
   if (disallowed.length) args.push('--disallowedTools', disallowed.join(','));
   const model = safeArg(req.model || ctx.config.defaultModel, 'model');
   if (model) args.push('--model', model);
   const prompt = flattenPrompt(req.system, req.messages) + imagesToFiles(req);
   req.onStatus?.('CLI process started');
+  let json: any = null;
+  let quotas: QuotaSnapshot[] | undefined;
   const r = await runCli({
     command,
     args,
@@ -71,13 +74,29 @@ async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResu
     signal: req.signal,
     timeoutMs: req.timeoutMs ?? 15 * 60_000,
     replaceEnv: cleanEnvForClaude(),
+    onStdoutLine: (line) => {
+      let ev: any;
+      try {
+        ev = JSON.parse(line);
+      } catch {
+        return;
+      }
+      if (ev.type === 'result') json = ev;
+      else if (ev.type === 'rate_limit_event') quotas = claudeQuotas(ev.rate_limit_info) ?? quotas;
+      else if (ev.type === 'assistant')
+        for (const b of ev.message?.content ?? []) {
+          if (b.type === 'text' && b.text) req.onDelta?.(b.text);
+          else if (b.type === 'tool_use') req.onStatus?.(`using ${b.name}${b.input?.url ? `: ${String(b.input.url).slice(0, 80)}` : b.input?.query ? `: ${String(b.input.query).slice(0, 80)}` : ''}`);
+        }
+    },
   });
   req.onStatus?.('CLI process exited');
-  let json: any;
-  try {
-    json = JSON.parse(r.stdout.trim().split('\n').filter(Boolean).pop() ?? '');
-  } catch {
-    throw new ProviderError(`Claude CLI returned no JSON (exit ${r.code}): ${(r.stderr || r.stdout).slice(0, 400)}`, r.code !== 0);
+  if (!json) {
+    try {
+      json = JSON.parse(r.stdout.trim().split('\n').filter(Boolean).pop() ?? '');
+    } catch {
+      throw new ProviderError(`Claude CLI returned no JSON (exit ${r.code}): ${(r.stderr || r.stdout).slice(0, 400)}`, r.code !== 0);
+    }
   }
   const u = json.usage ?? {};
   const usage = {
@@ -94,6 +113,7 @@ async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResu
       !notLoggedIn && /rate|overloaded|limit|529|503/i.test(raw),
     );
     (err as any).usage = usage;
+    (err as any).quotas = quotas;
     throw err;
   }
   const modelUsed = json.modelUsage ? Object.keys(json.modelUsage)[0] : model;
@@ -109,9 +129,35 @@ async function runClaude(ctx: ProviderContext, req: RunRequest): Promise<RunResu
     costUsd: subscription ? undefined : reported,
     costSource: !subscription && reported !== undefined ? 'reported' : undefined,
     subscription,
+    quotas,
     durationMs: Date.now() - started,
     meta: { sessionId: json.session_id, numTurns: json.num_turns, authMethod: auth?.authMethod ?? null, apiEquivalentUsd: reported },
   };
+}
+
+const CLAUDE_WINDOW_LABEL: Record<string, string> = {
+  five_hour: '5-hour limit',
+  seven_day: 'Weekly · all models',
+  seven_day_opus: 'Weekly · Opus',
+  seven_day_sonnet: 'Weekly · Sonnet',
+};
+
+/** Claude Code's rate_limit_event → plan usage per window (utilization 0–1, resetsAt unix seconds). */
+export function claudeQuotas(info: any): QuotaSnapshot[] | undefined {
+  const windows = info?.unifiedWindows;
+  if (!windows || typeof windows !== 'object') return undefined;
+  const out: QuotaSnapshot[] = [];
+  for (const [key, w] of Object.entries<any>(windows)) {
+    if (typeof w?.utilization !== 'number') continue;
+    out.push({
+      metric: `claude_${key}`,
+      label: CLAUDE_WINDOW_LABEL[key] ?? key.replace(/_/g, ' '),
+      percentUsed: w.utilization * 100,
+      resetsAt: typeof w.resetsAt === 'number' ? new Date(w.resetsAt * 1000).toISOString() : null,
+      note: w.status && w.status !== 'allowed' ? `status: ${w.status}` : undefined,
+    });
+  }
+  return out.length ? out : undefined;
 }
 
 export const claudeCliAdapter: ProviderAdapter = {
@@ -129,6 +175,7 @@ export const claudeCliAdapter: ProviderAdapter = {
     credentialFields: [],
     capabilities: { ...cliCaps, usageReporting: 'tokens+cost' },
     suggestedModels: ['opus', 'sonnet', 'haiku'],
+    quotaRefresh: 'request',
     limitations: [
       'Subscription quota (5-hour / weekly limits) is NOT exposed by any official API; the CLI only shows it interactively (/usage). Track it via manual quota entries.',
       'Reported cost (total_cost_usd) is the API-equivalent value; on a subscription login it is not actually billed.',
@@ -137,6 +184,18 @@ export const claudeCliAdapter: ProviderAdapter = {
     canExecute: true,
   },
   run: runClaude,
+  /** Claude Code only reports plan usage with a request: send the smallest one (haiku, no tools). */
+  async fetchQuota(ctx) {
+    const r = await runClaude(ctx, {
+      model: 'haiku',
+      system: 'Reply with exactly: ok',
+      messages: [{ role: 'user', content: 'ok' }],
+      signal: AbortSignal.timeout(90_000),
+      timeoutMs: 80_000,
+      permissions: { knowledgeScopes: [], fileAccess: 'none', allowCommandExecution: false, allowFileWrite: false, allowNetwork: false, canDelegate: false, canMessageAgents: false, requireApprovalForSensitiveActions: true },
+    });
+    return r.quotas ?? [];
+  },
   async checkConnection(ctx) {
     const command = resolveClaudeCommand(ctx.config.command as string | undefined);
     try {
@@ -255,7 +314,9 @@ async function runAgy(ctx: ProviderContext, req: RunRequest): Promise<RunResult>
   // mode (tool permissions are asked for and denied in print mode) plus --sandbox.
   if (p.allowFileWrite || p.allowCommandExecution) args.push('--mode', 'accept-edits');
   args.push('--disable-slash-commands');
-  if (ctx.config.sandbox !== false) args.push('--sandbox');
+  // --sandbox also removes agy's web tools (read_url_content, search_web, browser): only use it when the agent has
+  // no web access. Without it, terminal commands still need review, which print mode does not grant.
+  if (ctx.config.sandbox !== false && !p.allowNetwork) args.push('--sandbox');
   const timeoutMs = req.timeoutMs ?? 15 * 60_000;
   args.push('--print-timeout', `${Math.floor(timeoutMs / 1000)}s`);
   let prompt =
@@ -302,6 +363,25 @@ async function runAgy(ctx: ProviderContext, req: RunRequest): Promise<RunResult>
   };
 }
 
+/** agy `/usage` (JSON, no tokens): groups of models share a 5-hour and a weekly limit. */
+export function agyQuotas(json: any): QuotaSnapshot[] {
+  const groups = json?.command?.data?.groups;
+  if (!Array.isArray(groups)) return [];
+  const out: QuotaSnapshot[] = [];
+  for (const g of groups)
+    for (const b of g.buckets ?? []) {
+      if (typeof b.remaining_fraction !== 'number') continue;
+      const win = b.window === '5h' ? '5-hour limit' : b.window === 'weekly' ? 'Weekly limit' : String(b.name ?? b.window);
+      out.push({
+        metric: `agy_${b.id ?? `${g.name}_${b.window}`}`.replace(/[^\w-]/g, '_').slice(0, 60),
+        label: `${g.name} · ${win}`.slice(0, 120),
+        percentUsed: (1 - b.remaining_fraction) * 100,
+        resetsAt: b.reset_time ?? null,
+      });
+    }
+  return out;
+}
+
 export const antigravityCliAdapter: ProviderAdapter = {
   descriptor: {
     type: 'antigravity-cli',
@@ -318,6 +398,7 @@ export const antigravityCliAdapter: ProviderAdapter = {
     credentialFields: [],
     capabilities: { ...cliCaps, usageReporting: 'tokens' },
     suggestedModels: [],
+    quotaRefresh: 'free',
     limitations: [
       'The Antigravity desktop IDE has no public API; only the `agy` CLI is automatable.',
       'Plan quota / remaining credits are not exposed via an official API – record them via manual quota entries.',
@@ -326,6 +407,18 @@ export const antigravityCliAdapter: ProviderAdapter = {
     canExecute: true,
   },
   run: runAgy,
+  async fetchQuota(ctx) {
+    const ctrl = new AbortController();
+    const r = await runCli({ command: ctx.config.command || 'agy', args: ['--output-format', 'json', '--print-timeout', '60s', '--print=/usage'], signal: ctrl.signal, timeoutMs: 90_000 });
+    const line = r.stdout.trim().split(/\r?\n/).filter(Boolean).pop() ?? '';
+    let json: any;
+    try {
+      json = JSON.parse(line);
+    } catch {
+      throw new ProviderError(`agy /usage returned no JSON: ${(r.stderr || r.stdout).slice(0, 200)}`, true);
+    }
+    return agyQuotas(json);
+  },
   async listModels(ctx) {
     const ctrl = new AbortController();
     const r = await runCli({ command: ctx.config.command || 'agy', args: ['models'], signal: ctrl.signal, timeoutMs: 30000 });

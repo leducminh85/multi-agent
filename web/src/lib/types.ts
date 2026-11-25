@@ -96,6 +96,7 @@ export interface ProviderDescriptor {
     subscriptionQuotaApi: boolean;
   };
   suggestedModels: string[];
+  quotaRefresh?: 'free' | 'request';
   limitations: string[];
   canExecute: boolean;
 }

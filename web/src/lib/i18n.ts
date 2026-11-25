@@ -370,6 +370,13 @@ const VI: Record<string, string> = {
   'AI & model': 'AI & model',
   'Default (recommended)': 'Mặc định (khuyên dùng)',
   'provider default': 'mặc định',
+  'Web access (search the internet, open pages and YouTube links)': 'Truy cập web (tìm kiếm Internet, mở trang web và link YouTube)',
+  'Refresh usage': 'Cập nhật mức dùng',
+  'Reset – refresh to update': 'Đã reset – bấm cập nhật',
+  'Only real numbers: plan limits come from the Claude / Antigravity tools themselves.': 'Chỉ số liệu thật: hạn mức gói lấy trực tiếp từ công cụ của Claude / Antigravity.',
+  'No usage reading yet – press refresh.': 'Chưa có số liệu – bấm cập nhật.',
+  'Reads the limits with one tiny request (a few tokens).': 'Đọc hạn mức bằng một yêu cầu rất nhỏ (vài token).',
+  'Reads the limits for free (no tokens).': 'Đọc hạn mức miễn phí (không tốn token).',
   'Raw text': 'Văn bản gốc',
   Formatted: 'Định dạng',
   'Your answer… (you can paste a screenshot or drop files here)': 'Câu trả lời… (có thể dán ảnh chụp màn hình hoặc kéo thả tệp vào đây)',
@@ -480,6 +487,10 @@ const VI: Record<string, string> = {
   Note: 'Ghi chú',
   'Leave empty if unknown': 'Để trống nếu không biết',
   '5-hour session limit': 'Giới hạn phiên 5 giờ',
+  '5-hour limit': 'Giới hạn 5 giờ',
+  'Weekly · all models': 'Hàng tuần · mọi model',
+  'Weekly · Opus': 'Hàng tuần · Opus',
+  'Weekly · Sonnet': 'Hàng tuần · Sonnet',
   'Weekly limit': 'Giới hạn tuần',
   'Weekly limit (top model)': 'Giới hạn tuần (model cao nhất)',
   'Daily messages': 'Tin nhắn mỗi ngày',
@@ -557,6 +568,10 @@ const VI: Record<string, string> = {
 
 /** Dynamic strings: [pattern, replacement]. Applied to whole (trimmed) text nodes. */
 const PATTERNS: [RegExp, string][] = [
+  [/^Resets (.+)$/, 'Reset lúc $1'],
+  [/^Updated (.+)$/, 'Cập nhật $1'],
+  [/^(.+) · 5-hour limit$/, '$1 · Giới hạn 5 giờ'],
+  [/^(.+) · Weekly limit$/, '$1 · Giới hạn tuần'],
   [/^Out of quota – reopens (.+)\. Meanwhile the office uses another connected AI\.$/, 'Hết hạn mức – mở lại lúc $1. Trong lúc chờ, văn phòng dùng AI khác đã kết nối.'],
   [/^(.+) is available again\.$/, '$1 đã dùng lại được.'],
   [/^Still not available: (.+)$/, 'Vẫn chưa dùng được: $1'],
@@ -665,6 +680,7 @@ export function translateText(raw: string): string | null {
         .replace(/(\d+) min\b/g, '$1 phút')
         .replace(/ \(estimated\)/g, ' (ước tính)')
         .replace(/ \(rate limit\)/g, ' (giới hạn tốc độ)')
+        .replace(/\bjust now\b/g, 'vừa xong')
         .replace(/\b(\d+)(s|m|h|d) ago\b/g, (_, n, u) => `${n} ${AGO[u]} trước`);
       return raw.replace(raw.trim(), out);
     }

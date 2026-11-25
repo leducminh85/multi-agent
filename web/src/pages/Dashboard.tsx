@@ -8,6 +8,7 @@ import AnswerBox from '../components/AnswerBox';
 import Markdown from '../components/Markdown';
 import MissionList from '../components/MissionList';
 import QuickAgentModal from '../components/QuickAgentModal';
+import PlanUsage from '../components/PlanUsage';
 import QuotaRecovery from '../components/QuotaRecovery';
 import SetupWizard from '../components/SetupWizard';
 import TaskDrawer from '../components/TaskDrawer';
@@ -466,15 +467,19 @@ function UsagePanel({ className }: { className: string }) {
                 <span className="min-w-0 flex-1 truncate text-sm text-slate-200">{c.provider.name}</span>
                 <span className="text-[11px] text-slate-500">{fmtNum(tokens)} tok today</span>
               </div>
-              {(c.quotas as QuotaEntry[]).slice(0, 2).map((q) => (
-                <div key={q.id} className="mt-2">
-                  <div className="mb-0.5 flex justify-between text-[11px] text-slate-500">
-                    <span className="truncate">{q.label}</span>
-                    <span>{q.percentUsed != null ? `${Math.round(q.percentUsed)}%` : '?'}</span>
+              <PlanUsage provider={c.provider} quotas={c.quotas as QuotaEntry[]} compact />
+              {(c.quotas as QuotaEntry[])
+                .filter((q) => q.source !== 'cli')
+                .slice(0, 2)
+                .map((q) => (
+                  <div key={q.id} className="mt-2">
+                    <div className="mb-0.5 flex justify-between text-[11px] text-slate-500">
+                      <span className="truncate">{q.label}</span>
+                      <span>{q.percentUsed != null ? `${Math.round(q.percentUsed)}%` : '?'}</span>
+                    </div>
+                    <ProgressBar value={q.percentUsed ?? 0} tone={(q.percentUsed ?? 0) >= 90 ? 'bad' : (q.percentUsed ?? 0) >= 70 ? 'warn' : 'good'} />
                   </div>
-                  <ProgressBar value={q.percentUsed ?? 0} tone={(q.percentUsed ?? 0) >= 90 ? 'bad' : (q.percentUsed ?? 0) >= 70 ? 'warn' : 'good'} />
-                </div>
-              ))}
+                ))}
               {c.provider.status === 'error' && c.provider.statusMessage && !cooldownOf(c.provider.id) && (
                 <div className="mt-1 line-clamp-2 text-[11px] text-rose-300">{c.provider.statusMessage}</div>
               )}
@@ -482,7 +487,7 @@ function UsagePanel({ className }: { className: string }) {
             </div>
           );
         })}
-        <div className="text-[11px] text-slate-600">Only real, measured numbers. Subscription limits can be entered on the Usage page.</div>
+        <div className="text-[11px] text-slate-600">Only real numbers: plan limits come from the Claude / Antigravity tools themselves.</div>
       </div>
     </Panel>
   );

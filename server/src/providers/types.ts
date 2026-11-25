@@ -44,6 +44,8 @@ export interface ProviderDescriptor {
   credentialFields: FieldDef[];
   capabilities: ProviderCapabilities;
   suggestedModels: string[];
+  /** How plan usage (5-hour / weekly limits) can be read: free CLI command, a tiny request, or not at all. */
+  quotaRefresh?: 'free' | 'request';
   /** Honest list of what this integration can NOT do. */
   limitations: string[];
   /** false = provider can be configured for tracking but cannot execute tasks */
@@ -103,6 +105,8 @@ export interface RunResult {
   costSource?: 'reported';
   /** Run on a flat-rate subscription login: no per-request spend, so no cost is recorded or estimated. */
   subscription?: boolean;
+  /** Plan-limit readings reported alongside this run. */
+  quotas?: QuotaSnapshot[];
   rateLimit?: RateLimitInfo;
   durationMs: number;
   meta?: Record<string, unknown>;
@@ -131,6 +135,16 @@ export interface BillingRow {
   note?: string;
 }
 
+/** A plan-limit reading reported by the vendor's own tool (e.g. Claude Code rate_limit_event, agy /usage). */
+export interface QuotaSnapshot {
+  metric: string;
+  label: string;
+  /** 0–100 */
+  percentUsed: number;
+  resetsAt: string | null;
+  note?: string;
+}
+
 export interface ModelOption {
   id: string;
   label?: string;
@@ -140,6 +154,11 @@ export interface ProviderAdapter {
   descriptor: ProviderDescriptor;
   run(ctx: ProviderContext, req: RunRequest): Promise<RunResult>;
   checkConnection(ctx: ProviderContext): Promise<ConnectionCheck>;
+  /**
+   * Current plan-limit readings from the vendor's own tool. `quotaRefresh` on the descriptor says whether this
+   * is free ('free') or needs a tiny real request ('request').
+   */
+  fetchQuota?(ctx: ProviderContext): Promise<QuotaSnapshot[]>;
   /** Models this account can use, with human-friendly labels when the vendor provides them. */
   listModels?(ctx: ProviderContext): Promise<ModelOption[]>;
   /** Organisation billing data via the vendor's official API (admin credential). */

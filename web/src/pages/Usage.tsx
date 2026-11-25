@@ -1,3 +1,4 @@
+import PlanUsage from '../components/PlanUsage';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, BellOff, Check, CloudDownload, Info, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -261,15 +262,18 @@ function ProviderUsageCard({ data, onAddQuota }: { data: any; onAddQuota: () => 
             <Plus className="h-3 w-3" /> Manual entry
           </button>
         </div>
-        {!data.quotas.length ? (
+        <PlanUsage provider={data.provider} quotas={data.quotas} />
+        {!data.quotas.length && !['claude-code-cli', 'antigravity-cli'].includes(data.provider.type) ? (
           <div className="text-xs text-slate-500">
             {data.capabilities?.subscriptionQuotaApi ? 'No quota data yet.' : 'Quota: unknown – this provider exposes no official quota API. Add a manual entry from the vendor\'s usage page.'}
           </div>
         ) : (
-          <ul className="space-y-3">
-            {data.quotas.map((q: QuotaEntry) => (
-              <QuotaRow key={q.id} q={q} />
-            ))}
+          <ul className="mt-3 space-y-3">
+            {data.quotas
+              .filter((q: QuotaEntry) => q.source !== 'cli')
+              .map((q: QuotaEntry) => (
+                <QuotaRow key={q.id} q={q} />
+              ))}
           </ul>
         )}
       </div>
