@@ -14,7 +14,7 @@ import { ProviderError } from '../providers/types.js';
 import type { ApprovalService } from './approvals.js';
 import type { ContextBuilder } from './context.js';
 import { extractJson, parseAgentOutput, validatePlan, type AgentActions, type Plan } from './protocol.js';
-import type { AgentRuntime } from './runtime.js';
+import { QuotaError, type AgentRuntime } from './runtime.js';
 import { ACTIVE, TERMINAL, type ExtraContext, type Mission, type Store, type Task, type TaskStep } from './store.js';
 
 export interface OrchestratorDeps {
@@ -271,7 +271,7 @@ ${rt.autoSynthesis ? '- Do NOT add a final "consolidate/summarise results" task 
     const messages = [{ role: 'user' as const, content: user, images: att.images.length ? att.images : undefined }];
     let lastError = '';
     for (let attempt = 1; attempt <= 2; attempt++) {
-      const res = await this.d.runtime.invoke(planner, { system, messages, signal, missionId: mission.id });
+      const res = await this.d.runtime.invoke(planner, { system, messages, signal, missionId: mission.id, onFailover: (f) => this.announceFailover(f, planner) });
       try {
         return { plan: validatePlan(extractJson(res.text)) };
       } catch (e) {
@@ -566,6 +566,7 @@ ${rt.autoSynthesis ? '- Do NOT add a final "consolidate/summarise results" task 
         missionId: task.missionId,
         onDelta,
         onStatus,
+        onFailover: (f) => this.announceFailover(f, agent),
       });
       flush();
       this.d.store.closeOpenSteps(task.id, 'done');
@@ -587,6 +588,22 @@ ${rt.autoSynthesis ? '- Do NOT add a final "consolidate/summarise results" task 
     } finally {
       void this.tick();
     }
+  }
+
+  private announcedFailover = new Set<string>();
+  /** Tell the manager once per provider outage that work moved to another AI. */
+  private announceFailover(f: { fromId: string; fromName: string; toId: string; toName: string; reason: string }, agent: Agent) {
+    const cd = this.d.providers.cooldown(f.fromId);
+    const key = `${f.fromId}:${cd?.until.toISOString() ?? ''}:${f.toId}`;
+    if (this.announcedFailover.has(key)) return;
+    this.announcedFailover.add(key);
+    this.d.comms.post({
+      channel: 'global',
+      kind: 'message',
+      fromType: 'system',
+      fromName: 'Office',
+      content: `${f.reason}. Work for ${agent.name} and other employees on ${f.fromName} continues on ${f.toName} until then.`,
+    });
   }
 
   private afterAgentRun(agentId: string, activity: AgentActivity, detail: string | null, revertMs?: number) {
@@ -742,6 +759,19 @@ ${rt.autoSynthesis ? '- Do NOT add a final "consolidate/summarise results" task 
         taskId,
         content: `Finished "${task.title}":\n${truncate(output, 1200)}`,
       });
+    // A task the manager answered a question for reports back in the main chat, so the conversation has an end.
+    if (task.kind !== 'synthesis' && task.extraContext.some((x) => x.kind === 'manager_answer'))
+      this.d.comms.post({
+        channel: 'global',
+        kind: 'result',
+        fromType: 'agent',
+        fromId: agent.id,
+        fromName: agent.name,
+        toType: 'user',
+        missionId: task.missionId,
+        taskId,
+        content: `Done with "${task.title}" using your answer:\n${truncate(output, 1500)}`,
+      });
     this.d.activity.record({ type: 'task.completed', level: 'success', message: `${agent.name} completed "${task.title}"`, taskId, missionId: task.missionId, agentId: agent.id });
     this.afterAgentRun(agent.id, 'completed', `Completed: ${task.title}`, 8000);
     this.onTaskTerminal(taskId);
@@ -773,6 +803,16 @@ ${rt.autoSynthesis ? '- Do NOT add a final "consolidate/summarise results" task 
     });
     this.d.activity.record({ type: 'task.error', level: 'error', message: `${agent.name} failed "${task.title}": ${msg}`, taskId, missionId: task.missionId, agentId: agent.id });
     this.afterAgentRun(agent.id, 'error', truncate(msg, 160), 20_000);
+    if (e instanceof QuotaError)
+      this.d.comms.post({
+        channel: 'global',
+        kind: 'error',
+        fromType: 'system',
+        fromName: 'Office',
+        missionId: task.missionId,
+        taskId,
+        content: `${msg}. No other AI is available to take over "${task.title}". Connect another AI or switch the employee (More → Employees → Switch whole team to…), then press Retry on the task.`,
+      });
     if (!ACTIVE.includes(task.status)) return;
     const alternative = !task.pinned && this.hasAlternativeAgent(task, agent);
     if (task.attempts < task.maxAttempts && (retryable || alternative)) {
@@ -967,7 +1007,25 @@ ${rt.autoSynthesis ? '- Do NOT add a final "consolidate/summarise results" task 
     if (t.status !== 'waiting' || !(t.waitingReason ?? '').includes(WAIT_MANAGER)) throw new HttpError(409, 'Task is not waiting for a manager answer');
     this.d.comms.post({ channel: 'global', kind: 'message', fromType: 'user', fromName: actor, toType: 'agent', toId: t.agentId, toName: t.agentName, missionId: t.missionId, taskId, content: answer });
     this.d.audit.log(actor, 'task.respond', { type: 'task', id: taskId });
-    return this.resolveWait(taskId, (w) => w !== WAIT_MANAGER, [...t.extraContext, { kind: 'manager_answer', label: "Manager's answer to your question", content: answer, at: nowIso() }]);
+    const resumed = this.resolveWait(taskId, (w) => w !== WAIT_MANAGER, [...t.extraContext, { kind: 'manager_answer', label: "Manager's answer to your question", content: answer, at: nowIso() }]);
+    // Tell the manager the answer landed and work goes on – otherwise CLI agents (no streaming) look frozen for minutes.
+    const agent = t.agentId ? this.d.agents.find(t.agentId) : null;
+    // Name the AI that will really do the work (the agent's own one may be out of quota → failover).
+    let aiName = agent?.providerName ?? null;
+    if (agent?.providerId && this.d.providers.cooldown(agent.providerId)) aiName = this.d.runtime.fallbackProvider([agent.providerId])?.name ?? aiName;
+    const stillWaiting = resumed.status === 'waiting';
+    this.d.comms.post({
+      channel: 'global',
+      kind: 'message',
+      fromType: 'system',
+      fromName: 'Office',
+      missionId: t.missionId,
+      taskId,
+      content: stillWaiting
+        ? `${t.agentName ?? 'The agent'} received your answer for "${t.title}" and is still waiting for: ${resumed.waitingReason}.`
+        : `${t.agentName ?? 'The agent'} received your answer and is continuing "${t.title}"${aiName ? ` (${aiName})` : ''}. You will see the result here when it is done.`,
+    });
+    return resumed;
   }
 
   decideApproval(approvalId: string, decision: 'approved' | 'rejected', note: string | undefined, actor: string) {
@@ -1102,7 +1160,7 @@ When the manager asks for actual work to be done by the team (research, writing,
 and briefly confirm what you launched. Do not launch missions for simple questions you can answer yourself. Never invent progress that is not in the snapshot.`;
       const user = `# Office status snapshot\n${this.statusSnapshot()}\n\n# Conversation so far\n${history}\n\n# Manager's new message\n${text}${att.text ? `\n\n# Attached files\n${att.text}` : ''}`;
       const ctrl = new AbortController();
-      const res = await this.d.runtime.invoke(coord, { system, messages: [{ role: 'user', content: user, images: att.images.length ? att.images : undefined }], signal: ctrl.signal });
+      const res = await this.d.runtime.invoke(coord, { system, messages: [{ role: 'user', content: user, images: att.images.length ? att.images : undefined }], signal: ctrl.signal, onFailover: (f) => this.announceFailover(f, coord) });
       const { output, actions } = parseAgentOutput(res.text);
       this.d.comms.post({ channel: 'global', kind: 'message', fromType: 'agent', fromId: coord.id, fromName: coord.name, toType: 'user', content: output || '(no reply text)' });
       if (actions.create_mission) {

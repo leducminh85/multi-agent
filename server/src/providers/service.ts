@@ -190,6 +190,9 @@ export class ProviderService {
     } catch (e: any) {
       result = { ok: false, message: e?.message ?? String(e) };
     }
+    // A reachable CLI can still be out of quota: keep reporting the quota problem until it resets.
+    const cd = result.ok ? this.cooldown(id) : null;
+    if (cd) result = { ...result, ok: false, message: cd.message };
     this.setStatus(id, result.ok ? 'connected' : 'error', result.message);
     return result;
   }
@@ -200,6 +203,33 @@ export class ProviderService {
     this.db.run('UPDATE providers SET status = ?, status_message = ?, last_checked_at = ? WHERE id = ?', [status, message, nowIso(), id]);
     this.bus.publish('provider.updated', this.get(id));
     this.onStatusChange?.(id, status !== 'error', message);
+  }
+
+  /**
+   * Out-of-quota cooldown: the provider is skipped (agents fail over to another AI) until `until`.
+   * Persisted in the settings table so a restart does not burn another slow failing call.
+   */
+  setCooldown(id: string, until: Date, message: string): void {
+    this.db.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [
+      `cooldown:${id}`,
+      JSON.stringify({ until: until.toISOString(), message }),
+    ]);
+    this.setStatus(id, 'error', message);
+  }
+
+  cooldown(id: string): { until: Date; message: string } | null {
+    const row = this.db.get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [`cooldown:${id}`]);
+    if (!row) return null;
+    const v = parseJson<{ until: string; message: string } | null>(row.value, null);
+    if (!v || new Date(v.until).getTime() <= Date.now()) {
+      this.db.run('DELETE FROM settings WHERE key = ?', [`cooldown:${id}`]);
+      return null;
+    }
+    return { until: new Date(v.until), message: v.message };
+  }
+
+  clearCooldown(id: string): void {
+    this.db.run('DELETE FROM settings WHERE key = ?', [`cooldown:${id}`]);
   }
 
   recordRateLimit(id: string, info: RateLimitInfo): void {

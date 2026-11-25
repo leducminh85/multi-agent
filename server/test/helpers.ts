@@ -9,6 +9,7 @@ export interface MockCall {
   system: string;
   prompt: string;
   model?: string;
+  providerId?: string;
   startedAt: number;
   endedAt?: number;
 }
@@ -44,8 +45,8 @@ export function createMockAdapter(script: MockScript, opts: { delayMs?: number }
       limitations: [],
       canExecute: true,
     },
-    async run(_ctx, req): Promise<RunResult> {
-      const call: MockCall = { system: req.system, prompt: req.messages.map((m) => m.content).join('\n---\n'), model: req.model, startedAt: Date.now() };
+    async run(ctx, req): Promise<RunResult> {
+      const call: MockCall = { system: req.system, prompt: req.messages.map((m) => m.content).join('\n---\n'), model: req.model, providerId: ctx.providerId, startedAt: Date.now() };
       calls.push(call);
       active++;
       maxActive = Math.max(maxActive, active);

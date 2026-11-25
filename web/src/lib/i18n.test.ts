@@ -14,6 +14,10 @@ describe('Vietnamese interface translation', () => {
     expect(translateText('Rin (Research) completed "Find sources"')).toBe('Rin (Research) đã hoàn thành "Find sources"');
     expect(translateText('Mission "Slogans" finished with 1 failed task(s)')).toBe('Yêu cầu "Slogans" kết thúc với 1 task lỗi');
     expect(translateText('12s ago')).toBe('12 giây trước');
+    expect(translateText('Google Antigravity is out of quota – resets in 6 days 15 h')).toBe('Google Antigravity đã hết hạn mức – mở lại sau 6 ngày 15 giờ');
+    expect(translateText('Rin received your answer and is continuing "Research" (Google Antigravity). You will see the result here when it is done.')).toBe(
+      'Rin đã nhận câu trả lời và đang làm tiếp "Research" (Google Antigravity). Kết quả sẽ hiện ở đây khi xong.',
+    );
     expect(translateText('active 3m ago')).toBe('hoạt động 3 phút trước');
   });
 

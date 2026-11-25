@@ -11,7 +11,7 @@ import TaskDrawer from '../components/TaskDrawer';
 import { Badge, cx, Empty, ProgressBar } from '../components/ui';
 import { get, post } from '../lib/api';
 import { useAction, useAgents, useAlerts, useApprovals, useMessages, useMissions, useOverview, useProviders, useRoles, useTasks } from '../lib/hooks';
-import { fmtNum, fmtUsd, timeAgo } from '../lib/format';
+import { fmtNum, fmtUsd, formatDuration, timeAgo } from '../lib/format';
 import { onEvent } from '../lib/realtime';
 import type { QuotaEntry, Task } from '../lib/types';
 import { OfficeEngine, type OfficeAgent } from '../office/engine';
@@ -308,18 +308,52 @@ function NeedsYou({ approvals, questions, onTask }: { approvals: any[]; question
         </div>
       ))}
       {questions.map((t) => (
-        <button key={t.id} className="block w-full rounded-lg border border-orange-500/30 bg-orange-500/5 p-2.5 text-left text-sm hover:bg-orange-500/10" onClick={() => onTask(t.id)}>
-          <div className="text-xs font-medium uppercase tracking-wide text-orange-300">{t.agentName} has a question</div>
-          <div className="text-slate-200">{t.title}</div>
-          <div className="mt-1 text-xs text-accent-400">Answer →</div>
-        </button>
+        <QuestionCard key={t.id} task={t} onTask={onTask} />
       ))}
     </div>
   );
 }
 
+/** Shows the agent's actual question and lets the manager answer in place. */
+function QuestionCard({ task: t, onTask }: { task: Task; onTask: (id: string) => void }) {
+  const msgs = useMessages('global', '&limit=100');
+  const [answer, setAnswer] = useState('');
+  const send = useAction((text: string) => post(`/tasks/${t.id}/respond`, { answer: text }), {
+    success: 'Answer sent – task resumed',
+    invalidate: [['tasks'], ['messages'], ['overview']],
+  });
+  const q = [...(msgs.data ?? [])].reverse().find((m) => m.kind === 'question' && m.taskId === t.id);
+  // Server format: `Question about "<task>": <question>` – show just the question.
+  const question = q ? q.content.replace(/^Question about ".*?":\s*/s, '') : t.title;
+  return (
+    <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-2.5 text-sm">
+      <div className="text-xs font-medium text-orange-300">{`${t.agentName ?? 'An employee'} has a question`}</div>
+      <div translate="no" className="mt-1 whitespace-pre-wrap text-slate-100">
+        {question}
+      </div>
+      <button className="mt-1 text-[11px] text-slate-500 hover:text-slate-300" onClick={() => onTask(t.id)}>
+        {t.title} →
+      </button>
+      <div className="mt-2 flex gap-2">
+        <textarea
+          className="input h-16 resize-none text-sm"
+          placeholder="Your answer…"
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && answer.trim()) send.mutate(answer.trim());
+          }}
+        />
+        <button className="btn-primary self-end" disabled={!answer.trim() || send.isPending} onClick={() => send.mutate(answer.trim())}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ tasks
-const ACTIVE = ['pending', 'planning', 'assigned', 'running', 'reviewing', 'waiting'];
+const ACTIVE =['pending', 'planning', 'assigned', 'running', 'reviewing', 'waiting'];
 const STATUS_LABEL: Record<string, [string, string]> = {
   pending: ['Queued', 'bg-slate-500'],
   planning: ['Planning', 'bg-sky-400'],
@@ -337,6 +371,13 @@ function TasksPanel({ className, onTask }: { className: string; onTask: (id: str
   const missions = useMissions();
   const [tab, setTab] = useState<'requests' | 'active' | 'done' | 'failed'>('requests');
   const all = tasks.data ?? [];
+  const [now, setNow] = useState(Date.now());
+  const anyRunning = all.some((t) => t.status === 'running' || t.status === 'reviewing');
+  useEffect(() => {
+    if (!anyRunning) return;
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [anyRunning]);
   const groups = {
     active: all.filter((t) => ACTIVE.includes(t.status)),
     done: all.filter((t) => t.status === 'completed'),
@@ -379,7 +420,11 @@ function TasksPanel({ className, onTask }: { className: string; onTask: (id: str
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-slate-200">{t.title}</span>
                       <span className="block truncate text-[11px] text-slate-500">
-                        {label}
+                        <span>{label}</span>
+                        {t.status === 'running' || t.status === 'reviewing' ? (
+                          // Live elapsed time: CLI agents stream nothing, so this is the visible sign they are still working.
+                          <span className="text-accent-400"> · {formatDuration(Math.max(0, now - new Date(t.updatedAt).getTime()))}</span>
+                        ) : null}
                         {t.agentName ? ` · ${t.agentName}` : ''}
                         {t.waitingReason ? ` · ${t.waitingReason}` : ''}
                       </span>

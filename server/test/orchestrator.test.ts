@@ -229,6 +229,10 @@ describe('Orchestrator – collaboration', () => {
     await waitFor(() => s.store.getMission(m.id).status === 'completed', 8000, 'completed');
     expect(s.store.getTask(t.id).output).toBe('Post written in English');
     expect(mock.calls.pop()!.prompt).toContain('English please');
+    // The manager sees feedback right after answering and the result in the main chat – the conversation does not go silent.
+    const global = s.comms.list({ channel: 'global' });
+    expect(global.some((x) => x.fromType === 'system' && x.content.includes('received your answer and is continuing'))).toBe(true);
+    expect(global.some((x) => x.kind === 'result' && x.taskId === t.id && x.content.includes('Post written in English'))).toBe(true);
   });
 
   it('gates sensitive actions behind manager approval', async () => {
@@ -269,5 +273,45 @@ describe('Orchestrator – collaboration', () => {
     s.orchestrator.reassignTask(t.id, content.id, 'ceo');
     await waitFor(() => s.store.getMission(m.id).status === 'completed', 8000, 'completed');
     expect(s.store.getTask(t.id).agentId).toBe(content.id);
+  });
+});
+
+describe('Orchestrator – out-of-quota failover', () => {
+  it('moves work to another connected AI when the agent’s AI is out of quota, and remembers the cooldown', async () => {
+    let quotaProviderId = '';
+    const { s, mock, team } = setup((req, call) => {
+      if (call.providerId === quotaProviderId) return new ProviderError('Antigravity error: ERROR Individual quota reached. Please upgrade your subscription. Resets in 2h5m0s.', false);
+      if (isPlanner(req)) return JSON.stringify({ tasks: [{ key: 'a', title: 'Research', role: 'researcher' }] });
+      return 'done on the backup AI';
+    });
+    quotaProviderId = team.provider.id;
+    const backup = s.providers.create({ type: 'mock', name: 'Backup AI', config: {}, credentials: { apiKey: 'sk-test-999999' }, enabled: true, maxConcurrency: 4 });
+    s.providers.setStatus(backup.id, 'connected', 'ok');
+
+    const m = await s.orchestrator.submitMission({ text: 'research something' }, 'ceo');
+    await waitFor(() => s.store.getMission(m.id).status === 'completed', 8000, 'completed');
+    const t = s.store.listTasks({ missionId: m.id }).find((x) => x.title === 'Research')!;
+    expect(t.output).toBe('done on the backup AI');
+    // The failing AI is in cooldown with the provider's own reset time; the manager was told once.
+    const cd = s.providers.cooldown(team.provider.id)!;
+    expect(cd.until.getTime() - Date.now()).toBeGreaterThan(2 * 3600_000);
+    expect(s.providers.get(team.provider.id).status).toBe('error');
+    const notices = s.comms.list({ channel: 'global' }).filter((x) => x.fromType === 'system' && x.content.includes('continues on Backup AI'));
+    expect(notices).toHaveLength(1);
+    // Later calls skip the exhausted AI entirely (no slow failing call first).
+    const before = mock.calls.filter((c) => c.providerId === team.provider.id).length;
+    const m2 = await s.orchestrator.submitMission({ text: 'again' }, 'ceo');
+    await waitFor(() => s.store.getMission(m2.id).status === 'completed', 8000, 'second mission');
+    expect(mock.calls.filter((c) => c.providerId === team.provider.id).length).toBe(before);
+  });
+
+  it('fails clearly (no retries) when no other AI is available', async () => {
+    const { s } = setup((req) => {
+      if (isPlanner(req)) return JSON.stringify({ tasks: [{ key: 'a', title: 'Research', role: 'researcher' }] });
+      return new ProviderError('ERROR Individual quota reached. Resets in 10m0s.', false);
+    });
+    const m = await s.orchestrator.submitMission({ text: 'research something' }, 'ceo');
+    await waitFor(() => ['failed', 'completed'].includes(s.store.getMission(m.id).status), 8000, 'finished');
+    expect(s.comms.list({ channel: 'global' }).some((x) => x.kind === 'error' && x.content.includes('No other AI is available'))).toBe(true);
   });
 });

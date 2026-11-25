@@ -546,6 +546,14 @@ const VI: Record<string, string> = {
 
 /** Dynamic strings: [pattern, replacement]. Applied to whole (trimmed) text nodes. */
 const PATTERNS: [RegExp, string][] = [
+  [/^(.+) is out of quota( \(rate limit\))? – resets in (.+?)( \(estimated\))?\. Work for (.+) and other employees on (.+) continues on (.+) until then\.$/, '$1 đã hết hạn mức$2 – mở lại sau $3$4. Việc của $5 và các nhân viên khác dùng $6 sẽ tạm chạy trên $7 cho tới lúc đó.'],
+  [/^(.+) is out of quota( \(rate limit\))? – resets in (.+?)( \(estimated\))?\. No other AI is available to take over "(.+)"\. .+$/, '$1 đã hết hạn mức$2 – mở lại sau $3$4. Không có AI nào khác để làm tiếp "$5". Hãy kết nối thêm AI hoặc đổi AI cho nhân viên (Thêm → Nhân viên → Đổi AI cho cả đội), rồi bấm Thử lại ở task.'],
+  [/^(.+) is out of quota( \(rate limit\))? – resets in (.+?)( \(estimated\))?$/, '$1 đã hết hạn mức$2 – mở lại sau $3$4'],
+  [/^(.+) is out of quota – switching to (.+)$/, '$1 hết hạn mức – chuyển sang $2'],
+  [/^(.+) is out of quota – using (.+)$/, '$1 hết hạn mức – dùng $2'],
+  [/^(.+) received your answer and is continuing "(.+)" \((.+)\)\. You will see the result here when it is done\.$/, '$1 đã nhận câu trả lời và đang làm tiếp "$2" ($3). Kết quả sẽ hiện ở đây khi xong.'],
+  [/^(.+) received your answer and is continuing "(.+)"\. You will see the result here when it is done\.$/, '$1 đã nhận câu trả lời và đang làm tiếp "$2". Kết quả sẽ hiện ở đây khi xong.'],
+  [/^(.+) received your answer for "(.+)" and is still waiting for: (.+)\.$/, '$1 đã nhận câu trả lời cho "$2" và vẫn đang chờ: $3.'],
   [/^(.+) – not connected yet, choose to connect$/, '$1 – chưa kết nối, chọn để kết nối'],
   [/^(.+) – sign in to connect$/, '$1 – cần đăng nhập để kết nối'],
   [/^(.+) now uses the selected AI$/, '$1 đã chuyển sang AI mới'],
@@ -635,7 +643,14 @@ export function translateText(raw: string): string | null {
   if (hit !== undefined) return raw.replace(raw.trim(), hit);
   for (const [re, rep] of PATTERNS) {
     if (re.test(text)) {
-      const out = text.replace(re, rep).replace(/\b(\d+)(s|m|h|d) ago\b/g, (_, n, u) => `${n} ${AGO[u]} trước`);
+      const out = text
+        .replace(re, rep)
+        .replace(/(\d+) days\b/g, '$1 ngày')
+        .replace(/(\d+) h\b/g, '$1 giờ')
+        .replace(/(\d+) min\b/g, '$1 phút')
+        .replace(/ \(estimated\)/g, ' (ước tính)')
+        .replace(/ \(rate limit\)/g, ' (giới hạn tốc độ)')
+        .replace(/\b(\d+)(s|m|h|d) ago\b/g, (_, n, u) => `${n} ${AGO[u]} trước`);
       return raw.replace(raw.trim(), out);
     }
   }
